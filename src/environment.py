@@ -16,7 +16,7 @@ class Obstacle:
 
     def is_point_inside(self, point: np.ndarray) -> bool:
         px, py = point
-        return (self.x <= px <= self.x + self.lx) and (self.y <= py <= self.y + self.ly)
+        return (self.x < px < self.x + self.lx) and (self.y < py < self.y + self.ly)
 
 #======================================================================#
 #                    Abstract Classes                                  #
@@ -219,6 +219,7 @@ class Environment:
         show: bool = True,
         pause: Optional[float] = None,
         title: Optional[str] = None,
+        label_waypoints: bool = False,
         figsize: Tuple[int, int] = (8, 6),
         block: bool = False,
     ):
@@ -358,17 +359,29 @@ class Environment:
         # Efficient path update: keep one Line2D + one scatter and update their data.
         line = getattr(ax, "_pp_path_line", None)
         scatter = getattr(ax, "_pp_path_scatter", None)
+        wp_texts = getattr(ax, "_pp_wp_texts", None)
 
         if path is None:
             if line is not None:
                 line.set_data([], [])
             if scatter is not None:
                 scatter.set_offsets(np.empty((0, 2)))
+            if wp_texts:
+                for t in wp_texts:
+                    try:
+                        t.remove()
+                    except Exception:
+                        pass
+                ax._pp_wp_texts = []
         else:
-            pts = [np.array(self.u1s, dtype=float)]
-            for waypoint in path.get_waypoints():
-                pts.append(np.array(waypoint.to_tuple(), dtype=float))
-            pts = np.vstack(pts)
+            wp_coords = [np.array(wp.to_tuple(), dtype=float) for wp in path.get_waypoints()]
+            if len(wp_coords) == 0:
+                pts = np.array([np.array(self.u1s, dtype=float)], dtype=float)
+            else:
+                pts = np.vstack(wp_coords)
+                # Avoid duplicating the start point if the path already includes it.
+                if not np.allclose(pts[0], np.array(self.u1s, dtype=float), atol=1e-9):
+                    pts = np.vstack([np.array(self.u1s, dtype=float), pts])
 
             if line is None:
                 (line,) = ax.plot(
@@ -401,11 +414,58 @@ class Environment:
             else:
                 scatter.set_offsets(wp_pts)
 
+            # Optional: label waypoints with their index
+            if label_waypoints:
+                if wp_texts is None:
+                    wp_texts = []
+                # Clear previous texts
+                for t in list(wp_texts):
+                    try:
+                        t.remove()
+                    except Exception:
+                        pass
+                wp_texts = []
+
+                # Small vertical offset in data units
+                y_offset = 0.015 * float(self.ymax)
+
+                # Numbering corresponds to the order in path.get_waypoints()
+                for i in range(wp_pts.shape[0]):
+                    x, y = float(wp_pts[i, 0]), float(wp_pts[i, 1])
+                    txt = ax.text(
+                        x,
+                        y + y_offset,
+                        str(i + 1),
+                        color=COLORS["text"],
+                        fontsize=9,
+                        ha='center',
+                        va='bottom',
+                        zorder=7,
+                    )
+                    wp_texts.append(txt)
+
+                ax._pp_wp_texts = wp_texts
+            else:
+                if wp_texts:
+                    for t in wp_texts:
+                        try:
+                            t.remove()
+                        except Exception:
+                            pass
+                    ax._pp_wp_texts = []
+
         if title is None:
             title = f"Board from file: {self.path}"
         ax.set_title(title, loc='center', color=COLORS["text"], fontsize=14, fontweight='bold')
 
-        fig.canvas.draw_idle()
+        # draw_idle() can be coalesced by some backends; force a draw+flush so
+        # iterative titles/markers update at the expected rate.
+        try:
+            fig.canvas.draw()
+            fig.canvas.flush_events()
+        except Exception:
+            fig.canvas.draw_idle()
+
         if pause is not None:
             plt.pause(pause)
         if show:

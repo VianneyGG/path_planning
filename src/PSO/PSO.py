@@ -19,16 +19,20 @@ import matplotlib.pyplot as plt
 #                           Hyperparameters for PSO                            #
 #==============================================================================#
 
-number_of_particules = 1000
-number_of_iterations = 150
+number_of_particules = 500
+number_of_iterations = 250
 number_of_waypoints = 4
+waypoints_reset_interval = 50
+initial_temperature = 1.0
+temperature_decay = 0.95
 
-inertia_weight = 1.0
+inertia_weight = 0.5    
 best_position_acceleration = 1.5
 global_best_position_acceleration = 1.5
 length_weight = 1.0
 smoothness_weight = 1.0
-collision_weight = 500.0
+collision_weight = 2000.0
+
 
 #==============================================================================#
 #                           PSO Class                                          #
@@ -49,25 +53,44 @@ class PSO(PathPlanning):
         self._fig = None
         self._ax = None
         
-    def plan_path(self, plot_steps : bool = False)-> np.ndarray:
+    def plan_path(self, plot_steps : bool = False, reset_waypoints : bool = False, simulated_annealing : bool = False)-> np.ndarray:
+        plot_interval = 20
         if plot_steps:
             plt.ion()
             if self._fig is None or self._ax is None:
                 self._fig, self._ax = plt.subplots(figsize=(8, 6), num='PSO - Path planning')
                 # Make sure the window is created without blocking
                 plt.show(block=False)
+            # Draw once before the heavy initialization so the window is not blank/white
+            self.environment.render(
+                path=None,
+                ax=self._ax,
+                clear=True,
+                show=False,
+                pause=0.05,
+                title='Initializing swarm...'
+            )
         swarm = Swarm.initialize_swarm(number_of_particules, self.environment, self.hyperparameters, number_of_waypoints)
-        for iteration in tqdm(range(number_of_iterations-1 )):
-            if plot_steps and iteration % 10 == 0:
+        temperature = initial_temperature
+        
+        for iteration in tqdm(range(number_of_iterations), desc="PSO Progress"):
+            temperature *= temperature_decay
+            if plot_steps and iteration % plot_interval == 0:
                 self.environment.render(
                     swarm.get_best_path(),
                     ax=self._ax,
                     clear=False,
                     show=False,
-                    pause=0.03,
+                    pause=0.01,
+                    label_waypoints=True,
                     title=f'Iteration: {iteration}/{number_of_iterations}',
                 )
-            swarm.forward(self.environment, self.hyperparameters)
+            swarm.update_global_best_position(temperature, simulated_annealing)
+            swarm.forward(self.environment, self.hyperparameters, temperature, simulated_annealing)
+            
+            if reset_waypoints and iteration % waypoints_reset_interval == 0 and iteration >= waypoints_reset_interval:
+                swarm.reset_waypoints(self.environment, number_of_waypoints, self.hyperparameters)
+                
         best_path_coords = swarm.get_global_best_position()
         self.solution = swarm.get_best_path()
         return best_path_coords
@@ -102,6 +125,6 @@ if __name__ == "__main__":
     env = Environment()
     env.from_file("scenarios/scenario3.txt")
     pso = PSO(env)
-    best_path = pso.plan_path(plot_steps=True)
+    best_path = pso.plan_path(plot_steps=True, reset_waypoints=True, simulated_annealing=True)
     pso.plot_solution()
     pso.statistics()

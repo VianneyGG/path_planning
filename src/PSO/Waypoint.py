@@ -41,8 +41,8 @@ class Waypoint(AbstractWaypoint):
     
     def move(self, dx: float, dy: float, xmax: float, ymax: float) -> None:
         if not self.isfixed:
-            self.x = min(max(self.x + dx, 0), xmax)
-            self.y = min(max(self.y + dy, 0), ymax)
+            self.x = self.x + dx
+            self.y = self.y + dy
             
     @staticmethod
     def from_tuple(position: tuple[float, float], isfixed: bool) -> 'Waypoint':

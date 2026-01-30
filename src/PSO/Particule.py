@@ -39,15 +39,30 @@ class Particule:
         
     def update_position(self, xmax, ymax)-> None:
         new_position = self.position + self.velocity
-        self.path.update_positions(new_position, xmax, ymax)
+
+        # Guard against NaN/Inf: keep previous coordinate if non-finite
+        finite = np.isfinite(new_position)
+        safe_position = np.where(finite, new_position, self.position)
+
+        # Clamp to borders
+        clamped = safe_position.copy()
+        clamped[:, 0] = np.clip(clamped[:, 0], 0.0, float(xmax))
+        clamped[:, 1] = np.clip(clamped[:, 1], 0.0, float(ymax))
+
+        # "Sans vitesse" when hitting borders (or when the coord was non-finite)
+        hit_border = (clamped != safe_position) | (~finite)
+        self.velocity[hit_border] = 0.0
+
+        # Apply (Path/Waypoint will also clamp, but now values are already safe)
+        self.path.update_positions(clamped, xmax, ymax)
         self.position = self.path.get_array_coords()
             
     def evaluate_fitness(self, env: Environment, hyperparameters: dict)-> None:
-        lenght = self.path.total_length()
+        length = self.path.total_length()
         smoothness = self.path.smoothness()
         nb_collisions = self.path.nb_collisions(env)
         fitness = (
-            hyperparameters['length_weight'] * lenght +
+            hyperparameters['length_weight'] * length +
             hyperparameters['smoothness_weight'] * smoothness +
             hyperparameters['collision_weight'] * nb_collisions
         )
