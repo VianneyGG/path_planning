@@ -86,7 +86,26 @@ class Path(AbstractPath):
                 drop_candidates.append(i)
 
         if drop_candidates:
-            self.prune_waypoints(drop_candidates)
+            # Avoid removing all consecutive non-fixed waypoints between fixed points.
+            # For any consecutive run of droppable indices, keep the first one and drop the rest.
+            drop_candidates_sorted = sorted(drop_candidates)
+            final_drop: list[int] = []
+            run_start = None
+            run_prev = None
+            for idx in drop_candidates_sorted:
+                if run_start is None:
+                    run_start = idx
+                    run_prev = idx
+                    continue
+                if idx == run_prev + 1:
+                    # continue run
+                    final_drop.append(idx)  # drop this one, keep the run_start
+                    run_prev = idx
+                else:
+                    # new run
+                    run_start = idx
+                    run_prev = idx
+            self.prune_waypoints(final_drop)
         return smoothness
     
     def update_positions(self, new_positions: np.ndarray, xmax, ymax)-> np.ndarray:

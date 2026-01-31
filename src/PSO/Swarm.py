@@ -36,6 +36,12 @@ class Swarm:
             particule.best_position = particule.position.copy()
             particule.velocity = np.zeros_like(particule.position)
             particule.evaluate_fitness(env, hyperparameters)
+        # After resetting all particules, reinitialize swarm-level bests to a neutral state
+        # so that the saved bests (kept by PSO) are preserved and the new swarm starts fresh.
+        if self.particules:
+            self.best_path = self.particules[0].path.copy()
+            self.global_best_position = self.best_path.get_array_coords()
+            self.global_best_position_fitness = np.inf
     
     def update_global_best_position(self, temperature : float, simulated_annealing: bool)-> None:
         temp = max(float(temperature), 1e-9)

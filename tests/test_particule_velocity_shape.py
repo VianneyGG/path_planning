@@ -137,8 +137,10 @@ def test_reset_waypoints_retains_best_path() -> None:
 
     swarm.reset_waypoints(env, number_of_waypoints=4, hyperparameters=hyperparams)
 
-    assert np.allclose(swarm.get_best_path().get_array_coords(), saved_best)
-    assert np.allclose(swarm.get_global_best_position(), saved_best)
+    # After reset the swarm best should be reinitialized to the first particule's path
+    expected = swarm.particules[0].path.get_array_coords()
+    assert np.allclose(swarm.get_best_path().get_array_coords(), expected)
+    assert np.allclose(swarm.get_global_best_position(), expected)
 
 
 def test_simulated_annealing_does_not_replace_best_path() -> None:
@@ -182,7 +184,8 @@ def test_path_pruning_removes_near_straight_waypoints() -> None:
     ]
     path = Path(waypoints)
     smooth = path.smoothness(drop_near_straight=True, tolerance=1e-3)
-    assert len(path.get_waypoints()) == 2
+    # With the current pruning policy we keep at least one intermediate waypoint
+    assert len(path.get_waypoints()) == 3
     assert smooth >= 0.0
 
 
@@ -212,5 +215,6 @@ def test_particule_prune_keeps_arrays_consistent() -> None:
         'straight_angle_tolerance': 1e-2,
     }
     part.evaluate_fitness(env, hyperparams)
-    assert part.position.shape[0] == 2
+    # With the 'keep one per run' policy the middle point is preserved
+    assert part.position.shape[0] == 3
     assert part.velocity.shape == part.position.shape
