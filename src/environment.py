@@ -14,6 +14,7 @@ class Obstacle:
         self.lx = lx
         self.ly = ly
 
+
     def is_point_inside(self, point: np.ndarray) -> bool:
         px, py = point
         return (self.x < px < self.x + self.lx) and (self.y < py < self.y + self.ly)
@@ -69,8 +70,8 @@ class AbstractPath(ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def nb_collisions(self, environment: 'Environment') -> int:
-        """Compte le nombre de collisions du chemin avec l'environnement"""
+    def collisions_and_corners(self, environment: 'Environment', corner_radius: float) -> Tuple[int, int]:
+        """Compte le nombre de collisions et de coins du chemin avec l'environnement"""
         raise NotImplementedError
     
     @abstractmethod
@@ -122,13 +123,15 @@ class StaticPath(AbstractPath):
             length += self._waypoints[i - 1].distance_to(self._waypoints[i])
         return length
     
-    def nb_collisions(self, environment: 'Environment') -> int:
-        collisions = 0
+    def collisions_and_corners(self, environment: 'Environment', corner_radius: float) -> Tuple[int, int]:
+        collisions, corners = 0, 0
         for i in range(1, len(self._waypoints)):
             p1 = self._waypoints[i - 1].to_array()
             p2 = self._waypoints[i].to_array()
             collisions += environment.check_line_collision(p1, p2)
-        return collisions
+            if environment.near_obstacle_corner(p1, corner_radius):
+                corners += 1
+        return collisions, corners
     
     def get_tuple_coords(self) -> List[Tuple[float, float]]:
         return [wp.to_tuple() for wp in self._waypoints]
@@ -193,19 +196,20 @@ class Environment:
                 # lines = [l.strip() for l in lines]
                 self.xmax = float(lines[0])
                 self.ymax = float(lines[1])
-                self.u1s = float(lines[2]), float(lines[3])
-                self.u1d = float(lines[4]), float(lines[5])
-                self.u2s = float(lines[6]), float(lines[7])
-                self.u2d = float(lines[8]), float(lines[9])
+                self.u1s = np.array([float(lines[2]), float(lines[3])], dtype=float)
+                self.u1d = np.array([float(lines[4]), float(lines[5])], dtype=float)
+                self.u2s = np.array([float(lines[6]), float(lines[7])], dtype=float)
+                self.u2d = np.array([float(lines[8]), float(lines[9])], dtype=float)
                 self.R = int(float(lines[10]))
-                # print(lines[11:])
-                for x in lines[11:]:
-                    # print(x)
-                    x = x.strip()
-                    x = x.split("   ")
-                    x = [float(y.strip()) for y in x]
-                    # self.obstacles.append(tuple(x))
-                    self.obstacles.append(Obstacle(*x))
+
+                self.obstacles = []
+                for s in lines[11:]:
+                    parts = s.split()
+                    if len(parts) < 4:
+                        continue
+                    x, y, lx, ly = map(float, parts[:4])
+                    self.obstacles.append(Obstacle(x, y, lx, ly))
+
                 self.path = filename
         except:
             raise FileNotFoundError(f"Could not find the fiel at {filename}")
@@ -496,6 +500,20 @@ class Environment:
             if line.intersects(box):
                 nb_collisions += 1
         return nb_collisions
+    
+    def near_obstacle_corner(self, point: np.ndarray, radius: float) -> bool:
+        px, py = point
+        for obs in self.obstacles:
+            corners = [
+                (obs.x, obs.y),
+                (obs.x + obs.lx, obs.y),
+                (obs.x + obs.lx, obs.y + obs.ly),
+                (obs.x, obs.y + obs.ly),
+            ]
+            for cx, cy in corners:
+                if np.linalg.norm(np.array([px - cx, py - cy])) <= radius:
+                    return True
+        return False
 
 if __name__ == "__main__":
     env = Environment()
@@ -503,5 +521,5 @@ if __name__ == "__main__":
     nb_scenario = int(input())
     env.from_file(f"scenarios/scenario{nb_scenario}.txt")
     path = StaticPath([(100, 200), (600, 900), (1000, 1000)])
-    print(path.nb_collisions(env))
+    print(path.collisions_and_corners(env, 5.0))
     env.render(path)

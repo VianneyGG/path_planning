@@ -12,6 +12,7 @@ class Particule:
         self.velocity = np.zeros_like(self.position)
         
         self.fitness = np.inf
+        self.best_fitness = np.inf
         
     @staticmethod
     def initialize_particule(env : Environment, hyperparameters: dict, number_of_waypoints: int)-> 'Particule':
@@ -25,53 +26,86 @@ class Particule:
     
     def get_position(self)-> np.ndarray:
         return self.position
+
+    def _sync_after_prune(self)-> None:
+        coords = self.path.get_array_coords()
+        if coords.shape != self.position.shape:
+            self.position = coords
+            self.velocity = np.zeros_like(coords)
+            self.best_position = coords.copy()
     
     def update_velocity(self, fixed_mask : list[bool], best_global_position: np.ndarray, hyperparameters: dict)-> None:
+        fixed_array = np.array(fixed_mask, dtype=bool)
+        unfixed_mask = ~fixed_array
+        if not unfixed_mask.any():
+            return
+
+        v = self.velocity[unfixed_mask]
+        x = self.position[unfixed_mask]
+        pbest = self.best_position[unfixed_mask]
+        gbest = best_global_position[unfixed_mask]
+
         r1 = rd.random()
         r2 = rd.random()
-        unfixed_mask =  np.array([np.array([not fixed, not fixed]) for fixed in fixed_mask])
+        
+        w = hyperparameters['inertia_weight']
+        c1 = hyperparameters['best_position_acceleration']
+        c2 = hyperparameters['global_best_position_acceleration']
+
         new_velocity = (
-            hyperparameters['inertia_weight'] * self.velocity[unfixed_mask] +
-            hyperparameters['best_position_acceleration'] * r1 * (self.best_position[unfixed_mask] - self.position[unfixed_mask]) +
-            hyperparameters['global_best_position_acceleration'] * r2 * (best_global_position[unfixed_mask] - self.position[unfixed_mask])
+            w * v +
+            c1 * r1 * (pbest - x) +
+            c2 * r2 * (gbest - x)
         )
         self.velocity[unfixed_mask] = new_velocity
         
     def update_position(self, xmax, ymax)-> None:
         new_position = self.position + self.velocity
 
-        # Guard against NaN/Inf: keep previous coordinate if non-finite
-        finite = np.isfinite(new_position)
-        safe_position = np.where(finite, new_position, self.position)
-
-        # Clamp to borders
-        clamped = safe_position.copy()
-        clamped[:, 0] = np.clip(clamped[:, 0], 0.0, float(xmax))
-        clamped[:, 1] = np.clip(clamped[:, 1], 0.0, float(ymax))
-
-        # "Sans vitesse" when hitting borders (or when the coord was non-finite)
-        hit_border = (clamped != safe_position) | (~finite)
-        self.velocity[hit_border] = 0.0
-
-        # Apply (Path/Waypoint will also clamp, but now values are already safe)
-        self.path.update_positions(clamped, xmax, ymax)
+        hit_border = self.path.update_positions(new_position, xmax, ymax)
+        if hit_border.any():  # If any waypoint hit the border of the environment
+            self.velocity[hit_border] = 0.0  # Set velocity to zero for those waypoints
         self.position = self.path.get_array_coords()
             
     def evaluate_fitness(self, env: Environment, hyperparameters: dict)-> None:
         length = self.path.total_length()
-        smoothness = self.path.smoothness()
-        nb_collisions = self.path.nb_collisions(env)
+        drop_straight = hyperparameters.get('prune_straight_angles', False)
+        tolerance = hyperparameters.get('straight_angle_tolerance', 1e-2)
+        smoothness = self.path.smoothness(drop_straight, tolerance)
+        self._sync_after_prune()
+        collisions, corners = self.path.collisions_and_corners(env, hyperparameters['corner_radius'])
         fitness = (
             hyperparameters['length_weight'] * length +
             hyperparameters['smoothness_weight'] * smoothness +
-            hyperparameters['collision_weight'] * nb_collisions
+            hyperparameters['collision_weight'] * collisions +
+            hyperparameters['corner_weight'] * corners
         )
-        if fitness < self.fitness:
+        self.position = self.path.get_array_coords()
+        
+        if fitness < self.best_fitness:
             self.best_position = self.position.copy()
+            self.best_fitness = fitness
+            
         self.fitness = fitness
     
-    def forward(self, env: Environment, global_best_position: np.ndarray, hyperparameters: dict)-> None:
-        fixed_mask = self.path.get_fixed_mask()
-        self.update_velocity(fixed_mask, global_best_position, hyperparameters)
-        self.update_position(env.xmax, env.ymax)
-        self.evaluate_fitness(env, hyperparameters) # Update fitness and best position
+    def dimensional_learning_forward(self, env : Environment, best_global_position: np.ndarray, hyperparameters: dict)-> None:
+        isfixed = self.path.get_fixed_mask()
+        for dim in range(self.position.shape[0]):
+            if isfixed[dim]:
+                continue
+            original_path = self.path.copy()
+            original_fitness = self.best_fitness
+            
+            self.position[dim] = best_global_position[dim].copy()            
+            hit_border = self.path.update_positions(self.position, env.xmax, env.ymax)
+            self.evaluate_fitness(env, hyperparameters)
+            
+            
+            if self.fitness >= original_fitness:
+                self.path = original_path
+                self.position = original_path.get_array_coords()
+                self.fitness = original_fitness
+                
+            else:
+                if hit_border.any():
+                    self.velocity[dim] = 0.0  # zero full waypoint velocity

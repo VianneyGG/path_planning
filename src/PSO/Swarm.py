@@ -12,8 +12,8 @@ import numpy.random as rd
 class Swarm:
     def __init__(self, particules: List[Particule], best_path: Path)-> None:
         self.particules = particules
-        self.best_path = best_path
-        self.global_best_position = best_path.get_array_coords()
+        self.best_path = best_path.copy()
+        self.global_best_position = self.best_path.get_array_coords()
         self.global_best_position_fitness = np.inf
         
     def add_particule(self, particule: Particule)-> None:
@@ -38,16 +38,16 @@ class Swarm:
             particule.evaluate_fitness(env, hyperparameters)
     
     def update_global_best_position(self, temperature : float, simulated_annealing: bool)-> None:
+        temp = max(float(temperature), 1e-9)
         for particule in self.particules:
             if particule.fitness < self.global_best_position_fitness:
                 self.global_best_position_fitness = particule.fitness
                 self.global_best_position = particule.get_position().copy()
-                self.best_path = particule.path
-            else:
-                if rd.random() < np.exp((self.global_best_position_fitness - particule.fitness) / temperature) and simulated_annealing:
-                    self.global_best_position_fitness = particule.fitness
+                self.best_path = particule.path.copy()
+            elif simulated_annealing:
+                prob = np.exp((self.global_best_position_fitness - particule.fitness) / temp)
+                if rd.random() < prob:
                     self.global_best_position = particule.get_position().copy()
-                    self.best_path = particule.path
 
         
     def get_global_best_position(self)-> np.ndarray:
@@ -56,9 +56,22 @@ class Swarm:
     def get_best_path(self)-> Path:
         return self.best_path
 
-    def forward(self, env : Environment, hyperparameters: dict, temperature: float, simulated_annealing: bool)-> None:
-        self.update_global_best_position(temperature, simulated_annealing)
+    def forward(self, env : Environment, hyperparameters: dict, temperature: float, simulated_annealing: bool, dimensional_learning: bool)-> None:
         for particule in self.particules:
-            particule.forward(env, self.global_best_position, hyperparameters)
-    
+
+            particule.evaluate_fitness(env, hyperparameters) # Update fitness and best position
+        
+        self.update_global_best_position(temperature, simulated_annealing) # Update global best position
+        
+        if dimensional_learning:
+            for particule in self.particules:
+                particule.dimensional_learning_forward(env, self.global_best_position, hyperparameters) # Dimensional learning update
+        
+            self.update_global_best_position(temperature, simulated_annealing) # Update global best position
+        
+        for particule in self.particules:
+            fixed_mask = particule.path.get_fixed_mask()
+            particule.update_velocity(fixed_mask, self.global_best_position, hyperparameters) # Velocity update
+            particule.update_position(env.xmax, env.ymax) # Position update
+
     

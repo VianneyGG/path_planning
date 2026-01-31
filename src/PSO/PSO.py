@@ -20,9 +20,9 @@ import matplotlib.pyplot as plt
 #==============================================================================#
 
 number_of_particules = 500
-number_of_iterations = 250
-number_of_waypoints = 4
-waypoints_reset_interval = 50
+number_of_iterations = 299
+number_of_waypoints = 5
+waypoints_reset_interval = 75
 initial_temperature = 1.0
 temperature_decay = 0.95
 
@@ -30,9 +30,10 @@ inertia_weight = 0.5
 best_position_acceleration = 1.5
 global_best_position_acceleration = 1.5
 length_weight = 1.0
-smoothness_weight = 1.0
-collision_weight = 2000.0
-
+smoothness_weight = 100.0
+collision_weight = 3000.0
+corner_weight = -150.0
+corner_radius = 5.0
 
 #==============================================================================#
 #                           PSO Class                                          #
@@ -47,14 +48,18 @@ class PSO(PathPlanning):
             'global_best_position_acceleration': global_best_position_acceleration,
             'length_weight': length_weight,
             'smoothness_weight': smoothness_weight,
-            'collision_weight': collision_weight
+            'collision_weight': collision_weight,
+            'corner_weight': corner_weight,
+            'corner_radius': corner_radius,
+            'prune_straight_angles': False,
+            'straight_angle_tolerance': 1e-2,
         }
         self.solution = None
         self._fig = None
         self._ax = None
         
-    def plan_path(self, plot_steps : bool = False, reset_waypoints : bool = False, simulated_annealing : bool = False)-> np.ndarray:
-        plot_interval = 20
+    def plan_path(self, plot_steps : bool = False, reset_waypoints : bool = False, simulated_annealing : bool = False, dimensional_learning : bool = False)-> np.ndarray:
+        plot_interval = 5
         if plot_steps:
             plt.ion()
             if self._fig is None or self._ax is None:
@@ -85,11 +90,15 @@ class PSO(PathPlanning):
                     label_waypoints=True,
                     title=f'Iteration: {iteration}/{number_of_iterations}',
                 )
-            swarm.update_global_best_position(temperature, simulated_annealing)
-            swarm.forward(self.environment, self.hyperparameters, temperature, simulated_annealing)
+            
+            if dimensional_learning and iteration % 5 == 0:
+                swarm.forward(self.environment, self.hyperparameters, temperature, simulated_annealing, True)
+            else:
+                swarm.forward(self.environment, self.hyperparameters, temperature, simulated_annealing, False)
             
             if reset_waypoints and iteration % waypoints_reset_interval == 0 and iteration >= waypoints_reset_interval:
                 swarm.reset_waypoints(self.environment, number_of_waypoints, self.hyperparameters)
+                print(f'Waypoints reset at iteration {iteration}')
                 
         best_path_coords = swarm.get_global_best_position()
         self.solution = swarm.get_best_path()
@@ -108,10 +117,15 @@ class PSO(PathPlanning):
         print(f'Length Weight: {length_weight}')
         print(f'Smoothness Weight: {smoothness_weight}')
         print(f'Collision Weight: {collision_weight}')
+        print(f'Corner Weight: {corner_weight}')
         print('#=================================================#')
+        print('#                  Best Path Statistics           #')
+        print('#=================================================#')
+        print(f'Best Path Fitness: {self.solution.total_length() * length_weight + self.solution.smoothness() * smoothness_weight + self.solution.collisions_and_corners(self.environment, corner_radius)[0] * collision_weight + self.solution.collisions_and_corners(self.environment, corner_radius)[1] * corner_weight }')
         print(f'Best Path Length: {self.solution.total_length()}')
         print(f'Best Path Smoothness: {self.solution.smoothness()}')
-        print(f'Best Path Collisions: {self.solution.nb_collisions(self.environment)}')
+        print(f'Best Path Collisions: {self.solution.collisions_and_corners(self.environment, corner_radius)[0]}')
+        print(f'Best Path Corners: {self.solution.collisions_and_corners(self.environment, corner_radius)[1]}')
         print('#=================================================#')
     
     def plot_solution(self)-> None:
@@ -123,8 +137,8 @@ class PSO(PathPlanning):
          
 if __name__ == "__main__":
     env = Environment()
-    env.from_file("scenarios/scenario3.txt")
+    env.from_file("scenarios/scenario4.txt")
     pso = PSO(env)
-    best_path = pso.plan_path(plot_steps=True, reset_waypoints=True, simulated_annealing=True)
+    best_path = pso.plan_path(plot_steps=True, reset_waypoints=True, simulated_annealing=True, dimensional_learning=True)
     pso.plot_solution()
     pso.statistics()
