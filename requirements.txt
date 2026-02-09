@@ -1,3 +1,4 @@
 matplotlib
 shapely
 plotly
+tqdm

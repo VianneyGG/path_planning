@@ -186,3 +186,4 @@ cython_debug/
 *.code-workspace
 
 environment.yml
+.DS_Store
