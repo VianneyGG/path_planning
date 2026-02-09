@@ -1,10 +1,10 @@
 import numpy as np
 
-from src.environment import AbstractPath, Environment
+from src.environment import Environment
 from .Waypoint import Waypoint
 
 
-class Path(AbstractPath):
+class Path:
     
     def __init__(self, waypoints: list[Waypoint])-> None:
         """Initialize a Path object.
@@ -18,12 +18,12 @@ class Path(AbstractPath):
     @staticmethod
     def initialize_path(env: Environment, number_of_waypoints: int)-> 'Path':
         x, y = env.u1s
-        waypoints = [Waypoint(x, y, isfixed=True)]  # Start waypoint
+        waypoints = [Waypoint(x, y, is_fixed=True)]  # Start waypoint
         for _ in range(number_of_waypoints):
-            waypoint = Waypoint.random_waypoint(env.get_obstacles(), x_range=(0,env.xmax), y_range=(0,env.ymax), isfixed=False)
+            waypoint = Waypoint.random_waypoint(env.get_obstacles(), x_range=(0,env.xmax), y_range=(0,env.ymax), is_fixed=False)
             waypoints.append(waypoint)
         x, y = env.u1d
-        waypoints.append(Waypoint(x, y, isfixed=True))  # Goal waypoint
+        waypoints.append(Waypoint(x, y, is_fixed=True))  # Goal waypoint
         return Path(waypoints)
     
     def get_waypoints(self)-> list[Waypoint]:
@@ -69,7 +69,7 @@ class Path(AbstractPath):
         smoothness = 0.0
         drop_candidates: list[int] = []
         for i in range(1, len(self.waypoints) - 1):
-            if self.waypoints[i].isfixed:
+            if self.waypoints[i].is_fixed:
                 continue
             p1 = np.array(self.waypoints[i - 1].to_array())
             p2 = np.array(self.waypoints[i].to_array())
@@ -126,6 +126,6 @@ class Path(AbstractPath):
         return hit_border
     
     def get_fixed_mask(self)-> list[bool]:
-        return [wp.isfixed for wp in self.waypoints]
+        return [wp.is_fixed for wp in self.waypoints]
     
             

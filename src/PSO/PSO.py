@@ -5,16 +5,16 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from src.environment import PathPlanning, Environment
+from src.environment import Environment
 from src.PSO.Swarm import Swarm
 from src.PSO.Path import Path
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-#==============================================================================#
+# ==============================================================================#
 #                           Hyperparameters for PSO                            #
-#==============================================================================#
+# ==============================================================================#
 
 number_of_particules = 500
 number_of_iterations = 200
@@ -32,29 +32,32 @@ collision_weight = 4000.0
 corner_weight = -100.0
 corner_radius = 5.0
 
-#==============================================================================#
-#                           PSO Class                                          #
-#==============================================================================#
+prune_straight_angles = False
+straight_angle_tolerance = 1e-2
 
-class PSO(PathPlanning):
+# ==============================================================================#
+#                           PSO Class                                          #
+# ==============================================================================#
+
+class PSO:
     def __init__(self, env: Environment)-> None:
         self.environment = env
         self.hyperparameters = {
-            'inertia_weight': inertia_weight,
-            'best_position_acceleration': best_position_acceleration,
-            'global_best_position_acceleration': global_best_position_acceleration,
-            'length_weight': length_weight,
-            'smoothness_weight': smoothness_weight,
-            'collision_weight': collision_weight,
-            'corner_weight': corner_weight,
-            'corner_radius': corner_radius,
-            'prune_straight_angles': False,
-            'straight_angle_tolerance': 1e-2,
+            "inertia_weight": inertia_weight,
+            "best_position_acceleration": best_position_acceleration,
+            "global_best_position_acceleration": global_best_position_acceleration,
+            "length_weight": length_weight,
+            "smoothness_weight": smoothness_weight,
+            "collision_weight": collision_weight,
+            "corner_weight": corner_weight,
+            "corner_radius": corner_radius,
+            "prune_straight_angles": prune_straight_angles,
+            "straight_angle_tolerance": straight_angle_tolerance,
         }
         self.solution = None
         self._fig = None
         self._ax = None
-        
+
     def plan_path(
         self,
         plot_steps : bool = False,
@@ -77,14 +80,8 @@ class PSO(PathPlanning):
                 # Make sure the window is created without blocking
                 plt.show(block=False)
             # Draw once before the heavy initialization so the window is not blank/white
-            self.environment.render(
-                path=None,
-                ax=self._ax,
-                clear=True,
-                show=False,
-                pause=0.05,
-                title='Initializing swarm...'
-            )
+            self.environment.render(path=None, ax=self._ax, title='Initializing swarm...')
+            plt.pause(0.05)
         swarm = Swarm.initialize_swarm(number_of_particules, self.environment, self.hyperparameters, number_of_waypoints)
         # saved best paths across resets
         saved_bests: list[Path] = []
@@ -92,20 +89,17 @@ class PSO(PathPlanning):
         if path_history is not None:
             path_history.append(swarm.get_best_path().get_array_coords().copy())
         temperature = initial_temperature
-        
+
         for iteration in tqdm(range(number_of_iterations), desc="PSO Progress"):
             temperature *= temperature_decay
             if plot_steps and iteration % plot_interval == 0:
                 self.environment.render(
                     swarm.get_best_path(),
                     ax=self._ax,
-                    clear=False,
-                    show=False,
-                    pause=0.01,
-                    label_waypoints=True,
                     title=f'Iteration: {iteration}/{number_of_iterations}',
                 )
-            
+                plt.pause(0.01)
+
             if dimensional_learning and iteration % 10 == 0:
                 swarm.forward(self.environment, self.hyperparameters, temperature, simulated_annealing, True)
             else:
@@ -113,7 +107,7 @@ class PSO(PathPlanning):
 
             if path_history is not None and iteration % animation_every == 0:
                 path_history.append(swarm.get_best_path().get_array_coords().copy())
-            
+
             if reset_waypoints and iteration % waypoints_reset_interval == 0 and iteration >= waypoints_reset_interval:
                 temperature = initial_temperature
                 # save current best path, then reset swarm to a fresh state
@@ -124,7 +118,7 @@ class PSO(PathPlanning):
                     pass
                 swarm.reset_waypoints(self.environment, number_of_waypoints, self.hyperparameters)
                 print(f'Waypoints reset at iteration {iteration}; saved bests: {len(saved_bests)}')
-                
+
         # Choose best among saved bests and current swarm best
         candidates = [p.copy() for p in saved_bests]
         candidates.append(swarm.get_best_path().copy())
@@ -188,6 +182,7 @@ class PSO(PathPlanning):
                     y1=obs.y + obs.ly,
                     line=dict(color="#6b2d45", width=2),
                     fillcolor="#2a1b23",
+                    layer="below",
                 )
 
             if self.environment.u1s is not None:
@@ -211,20 +206,51 @@ class PSO(PathPlanning):
                     )
                 )
 
+            xmax = float(self.environment.xmax)
+            ymax = float(self.environment.ymax)
             fig.update_layout(
-                title=title,
-                xaxis=dict(range=[0, float(self.environment.xmax)], autorange=False),
-                yaxis=dict(range=[0, float(self.environment.ymax)], autorange=False, scaleanchor="x"),
+                title=dict(text=title, font=dict(size=18)),
+                margin=dict(t=100, b=80, l=80, r=80),
+                xaxis=dict(
+                    range=[0, xmax],
+                    autorange=False,
+                    fixedrange=True,
+                    constrain="domain",
+                    tickfont=dict(size=12),
+                ),
+                yaxis=dict(
+                    range=[0, ymax],
+                    autorange=False,
+                    scaleanchor="x",
+                    scaleratio=1,
+                    fixedrange=True,
+                    constrain="domain",
+                    tickfont=dict(size=12),
+                ),
                 plot_bgcolor="#121826",
                 paper_bgcolor="#0f1218",
-                font=dict(color="#d6deeb"),
+                font=dict(color="#d6deeb", size=13),
                 showlegend=True,
+                legend=dict(
+                    font=dict(size=14),
+                    itemsizing="constant",
+                    itemwidth=30,
+                    x=1.02,
+                    y=1,
+                    xanchor="left",
+                ),
                 updatemenus=[
                     dict(
                         type="buttons",
                         showactive=False,
-                        x=0.05,
-                        y=1.1,
+                        x=0.02,
+                        y=1.08,
+                        xanchor="left",
+                        yanchor="bottom",
+                        bgcolor="#2a3344",
+                        bordercolor="#8b95a7",
+                        borderwidth=1,
+                        font=dict(size=14),
                         buttons=[
                             dict(
                                 label="Play",
@@ -249,9 +275,13 @@ class PSO(PathPlanning):
                             )
                             for i in range(len(frames))
                         ],
-                        x=0.1,
-                        y=0.0,
-                        len=0.9,
+                        x=0.02,
+                        y=0.02,
+                        len=0.96,
+                        xanchor="left",
+                        font=dict(size=11),
+                        currentvalue=dict(visible=True, prefix="Frame: ", font=dict(size=12)),
+                        transition=dict(duration=0),
                     )
                 ],
             )
@@ -275,7 +305,7 @@ class PSO(PathPlanning):
             fig.write_html(animation_html_path, auto_open=False, include_plotlyjs=animation_include_plotlyjs)
 
         return best.get_array_coords()
-    
+
     def statistics(self)-> None:
         print('#=================================================#')
         print('#                 PSO Statistics                  #')
@@ -299,18 +329,10 @@ class PSO(PathPlanning):
         print(f'Best Path Collisions: {self.solution.collisions_and_corners(self.environment, corner_radius)[0]}')
         print(f'Best Path Corners: {self.solution.collisions_and_corners(self.environment, corner_radius)[1]}')
         print('#=================================================#')
-    
+
     def plot_solution(self)-> None:
         if self._fig is None or self._ax is None:
             self._fig, self._ax = plt.subplots(figsize=(8, 6), num='PSO - Path planning')
-        self.environment.render(self.solution, ax=self._ax, clear=True, show=False, title='Best solution')
+        self.environment.render(self.solution, ax=self._ax, title='Best solution')
         plt.ioff()
         plt.show()
-         
-if __name__ == "__main__":
-    env = Environment()
-    env.from_file("scenarios/scenario2.txt")
-    pso = PSO(env)
-    best_path = pso.plan_path(plot_steps=False, reset_waypoints=True, simulated_annealing=True, dimensional_learning=True, animation_html_path="pso_animation.html", animation_every=2)
-    pso.plot_solution()
-    pso.statistics()
