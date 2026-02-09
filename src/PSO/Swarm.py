@@ -25,7 +25,7 @@ class Swarm:
         for _ in range(num_particules):
             particules.append(Particule.initialize_particule(env, hyperparameters, number_of_waypoints))
         best_path = particules[0].path
-        print(f"Initialized swarm with {num_particules} particules.")
+        # print(f"Initialized swarm with {num_particules} particules.") # printing makes program slower, impacting benchmark purity.
         return Swarm(particules, best_path)
     
     def reset_waypoints(self, env: Environment, number_of_waypoints: int, hyperparameters: dict)-> None: 

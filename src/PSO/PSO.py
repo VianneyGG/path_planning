@@ -1,10 +1,3 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))
-
 from src.environment import Environment
 from src.PSO.Swarm import Swarm
 from src.PSO.Path import Path
@@ -16,7 +9,7 @@ import matplotlib.pyplot as plt
 #                           Hyperparameters for PSO                            #
 # ==============================================================================#
 
-number_of_particules = 500
+number_of_particules = 100
 number_of_iterations = 200
 number_of_waypoints = 3
 waypoints_reset_interval = 50
@@ -57,6 +50,59 @@ class PSO:
         self.solution = None
         self._fig = None
         self._ax = None
+
+    def run(self) -> np.ndarray:
+        """
+        Run the PSO optimization only (no progress bar, no plotting, no animation).
+        Use this for benchmarking. Sets self.solution and returns best path coords.
+        """
+        swarm = Swarm.initialize_swarm(
+            number_of_particules, self.environment, self.hyperparameters, number_of_waypoints
+        )
+        saved_bests: list[Path] = []
+        temperature = initial_temperature
+
+        reset_waypoints = False
+        dimensional_learning = False
+
+        for iteration in range(number_of_iterations):
+            temperature *= temperature_decay
+            if dimensional_learning and iteration % 10 == 0:
+                swarm.forward(self.environment, self.hyperparameters, temperature, False, True)
+            else:
+                swarm.forward(self.environment, self.hyperparameters, temperature, False, False)
+
+            if reset_waypoints and iteration % waypoints_reset_interval == 0 and iteration >= waypoints_reset_interval:
+                temperature = initial_temperature
+                try:
+                    current_best = swarm.get_best_path().copy()
+                    saved_bests.append(current_best)
+                except Exception:
+                    pass
+                swarm.reset_waypoints(self.environment, number_of_waypoints, self.hyperparameters)
+
+        candidates = [p.copy() for p in saved_bests]
+        candidates.append(swarm.get_best_path().copy())
+
+        def path_fitness(path: Path) -> float:
+            pcopy = path.copy()
+            drop = self.hyperparameters.get("prune_straight_angles", False)
+            tol = self.hyperparameters.get("straight_angle_tolerance", 1e-2)
+            length = pcopy.total_length()
+            smooth = pcopy.smoothness(drop, tol)
+            collisions, corners = pcopy.collisions_and_corners(
+                self.environment, self.hyperparameters["corner_radius"]
+            )
+            return (
+                self.hyperparameters["length_weight"] * length
+                + self.hyperparameters["smoothness_weight"] * smooth
+                + self.hyperparameters["collision_weight"] * collisions
+                + self.hyperparameters["corner_weight"] * corners
+            )
+
+        best = min(candidates, key=path_fitness)
+        self.solution = best
+        return best.get_array_coords()
 
     def plan_path(
         self,

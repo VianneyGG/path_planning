@@ -14,8 +14,10 @@ import time
 from pathlib import Path
 
 import numpy as np
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
-# Project root
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -50,20 +52,20 @@ def run_rrt_bench(env, config: dict, seed: int):
         smooth=config.get("smooth", False),
     )
     t0 = time.perf_counter()
-    path = rrt.run_algorithm()
+    path = rrt.run_algorithm(progress_bar=False)
     t1 = time.perf_counter()
     length, collisions = path_length_and_collisions(path, env)
     return length, t1 - t0, collisions, len(path)
 
 
 def run_pso_bench(env, seed: int):
-    """Run PSO once with given seed. Return (path_length, time_sec, collisions, n_waypoints)."""
+    """Run PSO once with given seed (core algorithm only, no progress bar/plotting). Return (path_length, time_sec, collisions, n_waypoints)."""
     from src.PSO.PSO import PSO
 
     np.random.seed(seed)
     pso = PSO(env)
     t0 = time.perf_counter()
-    pso.plan_path(plot_steps=False)
+    pso.run()
     t1 = time.perf_counter()
     if pso.solution is None:
         return float("nan"), t1 - t0, -1, 0
@@ -72,7 +74,6 @@ def run_pso_bench(env, seed: int):
     return length, t1 - t0, collisions, len(pso.solution.get_waypoints())
 
 
-# RRT configurations for comparison (Q20, Q22)
 RRT_CONFIGS = {
     "RRT (basic)": {"p": 0.0, "smooth": False},
     "RRT + path optimization": {"p": 0.0, "smooth": True},
@@ -109,17 +110,16 @@ def run_benchmark(scenario_id: int, n_runs: int, include_pso: bool, seeds: list[
     return results
 
 
-def format_table(rows, headers):
-    """Print a simple text table."""
+def print_results_table(rows: list[tuple], headers: list[str], title: str | None = None) -> None:
+    """Print a Rich table with the given rows and headers."""
     if not rows:
         return
-    col_widths = [max(len(str(rows[r][c])) for r in range(len(rows))) for c in range(len(headers))]
-    col_widths = [max(col_widths[i], len(headers[i])) for i in range(len(headers))]
-    fmt = "  ".join(f"{{:{w}}}" for w in col_widths)
-    print(fmt.format(*headers))
-    print("-" * (sum(col_widths) + 2 * (len(headers) - 1)))
+    table = Table(show_header=True, header_style="bold cyan", title=title)
+    for h in headers:
+        table.add_column(h)
     for row in rows:
-        print(fmt.format(*row))
+        table.add_row(*[str(c) for c in row])
+    Console().print(table)
 
 
 def main():
@@ -130,17 +130,17 @@ def main():
     parser.add_argument("--csv", type=str, default="", help="Write summary to CSV file")
     args = parser.parse_args()
 
+    console = Console()
     all_summaries = []
 
     for scenario_id in args.scenarios:
         path_file = ROOT / "scenarios" / f"scenario{scenario_id}.txt"
         if not path_file.exists():
-            print(f"Scenario {scenario_id} not found, skipping.")
+            console.print(f"[yellow]Scenario {scenario_id} not found, skipping.[/yellow]")
             continue
 
-        print(f"\n{'='*60}")
-        print(f"Scenario {scenario_id}")
-        print("=" * 60)
+        console.print()
+        console.print(Panel(f"Scenario [bold]{scenario_id}[/bold]", title="Benchmark", border_style="blue"))
 
         results = run_benchmark(scenario_id, args.runs, include_pso=not args.no_pso)
 
@@ -169,7 +169,7 @@ def main():
                 "collisions_mean": mean_coll,
             })
 
-        format_table(rows, ["Method", "Path length", "Time", "Collisions"])
+        print_results_table(rows, ["Method", "Path length", "Time", "Collisions"], title=f"Scenario {scenario_id}")
 
     if args.csv:
         import csv
@@ -177,7 +177,7 @@ def main():
             w = csv.DictWriter(f, fieldnames=["scenario", "method", "path_length_mean", "path_length_std", "time_mean", "collisions_mean"])
             w.writeheader()
             w.writerows(all_summaries)
-        print(f"\nWrote summary to {args.csv}")
+        console.print(f"\n[green]Wrote summary to {args.csv}[/green]")
 
 
 if __name__ == "__main__":
