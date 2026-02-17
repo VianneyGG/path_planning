@@ -3,3 +3,8 @@ shapely
 plotly
 tqdm
 rich
+pandas
+pyarrow
+bayesian-optimization
+joblib
+seaborn

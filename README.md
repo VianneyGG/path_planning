@@ -41,6 +41,30 @@ $r_1, r_2$: random variables uniformly sampled on $[0,1]$
 
 --
 
+## PSO Bayesian hyperparameter optimization (per scenario)
+
+Run Bayesian optimization for PSO on one or more scenarios with:
+
+```bash
+python -m src.benchmarking.PSO_byesian_hyperparameters_optimization --scenarios 0 1 2 3 4 --init-points 20 --n-iter 100 --out-dir benchmark_results_bayes
+```
+
+If you are on Windows and want to guarantee the conda environment is fully active (DLL paths included), run:
+
+```bash
+conda run -n path_planning python -m src.benchmarking.PSO_byesian_hyperparameters_optimization --scenarios 0 1 2 3 4 --init-points 20 --n-iter 100 --out-dir benchmark_results_bayes
+```
+
+Notes:
+- `dimensional_learning=False` and `simulated_annealing=False` are forced in this benchmark.
+- Objective is collision-aware: collision-free paths are prioritized.
+
+Generated files in output directory:
+- `pso_runs.feather`: one row per Bayesian trial evaluation.
+- `pso_paths.feather`: best path coordinates found for each trial.
+- `scenarioX_best.json`: best config and metrics for each scenario.
+- `bayes_summary.json`: global summary across scenarios.
+
 
 # A second approach: Rapidly-exploring Random Tree (RRT)
 

@@ -1,7 +1,12 @@
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Polygon, box
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Optional, Sequence, Tuple, Union
+
+try:
+    from shapely.strtree import STRtree
+except Exception:  # pragma: no cover
+    STRtree = None
 
 
 class Obstacle:
@@ -10,6 +15,22 @@ class Obstacle:
         self.y = y
         self.lx = lx
         self.ly = ly
+        self.bounds = (self.x, self.y, self.x + self.lx, self.y + self.ly)
+        self.polygon = Polygon([
+            (self.x, self.y),
+            (self.x + self.lx, self.y),
+            (self.x + self.lx, self.y + self.ly),
+            (self.x, self.y + self.ly),
+        ])
+        self.corners = np.array(
+            [
+                (self.x, self.y),
+                (self.x + self.lx, self.y),
+                (self.x + self.lx, self.y + self.ly),
+                (self.x, self.y + self.ly),
+            ],
+            dtype=float,
+        )
 
     def is_point_inside(self, point: np.ndarray) -> bool:
         px, py = point
@@ -27,6 +48,17 @@ class Environment:
         self.R = None
         self.obstacles = []
         self.path = None
+        self._obstacle_tree = None
+        self._poly_to_obstacle = {}
+
+    def _rebuild_obstacle_index(self) -> None:
+        self._obstacle_tree = None
+        self._poly_to_obstacle = {}
+        if not self.obstacles or STRtree is None:
+            return
+        polygons = [obs.polygon for obs in self.obstacles]
+        self._obstacle_tree = STRtree(polygons)
+        self._poly_to_obstacle = {id(poly): obs for poly, obs in zip(polygons, self.obstacles)}
 
     def from_file(self, filename):
         try:
@@ -46,6 +78,7 @@ class Environment:
                     continue
                 x, y, lx, ly = map(float, parts[:4])
                 self.obstacles.append(Obstacle(x, y, lx, ly))
+            self._rebuild_obstacle_index()
             self.path = filename
         except OSError as e:
             raise FileNotFoundError(f"Could not find or read file: {filename}") from e
@@ -157,30 +190,39 @@ class Environment:
     
     def check_line_collision(self, p1: np.ndarray, p2: np.ndarray) -> int:
         nb_collisions = 0
+        p1 = np.asarray(p1, dtype=float)
+        p2 = np.asarray(p2, dtype=float)
         line = LineString([p1, p2])
-        for obs in self.obstacles:
-            box = Polygon([
-                (obs.x, obs.y),
-                (obs.x + obs.lx, obs.y),
-                (obs.x + obs.lx, obs.y + obs.ly),
-                (obs.x, obs.y + obs.ly),
-            ])
-            if line.intersects(box):
+
+        minx = min(float(p1[0]), float(p2[0]))
+        maxx = max(float(p1[0]), float(p2[0]))
+        miny = min(float(p1[1]), float(p2[1]))
+        maxy = max(float(p1[1]), float(p2[1]))
+
+        candidates = self.obstacles
+        if self._obstacle_tree is not None and len(self.obstacles) >= 20:
+            query_geom = box(minx, miny, maxx, maxy)
+            geoms = self._obstacle_tree.query(query_geom)
+            candidates = [self._poly_to_obstacle.get(id(poly)) for poly in geoms]
+
+        for obs in candidates:
+            if obs is None:
+                continue
+            ox0, oy0, ox1, oy1 = obs.bounds
+            if maxx < ox0 or minx > ox1 or maxy < oy0 or miny > oy1:
+                continue
+            if line.intersects(obs.polygon):
                 nb_collisions += 1
         return nb_collisions
     
     def near_obstacle_corner(self, point: np.ndarray, radius: float) -> bool:
         px, py = point
+        radius2 = float(radius) * float(radius)
+        point_arr = np.array([px, py], dtype=float)
         for obs in self.obstacles:
-            corners = [
-                (obs.x, obs.y),
-                (obs.x + obs.lx, obs.y),
-                (obs.x + obs.lx, obs.y + obs.ly),
-                (obs.x, obs.y + obs.ly),
-            ]
-            for cx, cy in corners:
-                if np.linalg.norm(np.array([px - cx, py - cy])) <= radius:
-                    return True
+            deltas = obs.corners - point_arr
+            if np.any(np.sum(deltas * deltas, axis=1) <= radius2):
+                return True
         return False
 
 if __name__ == "__main__":

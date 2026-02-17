@@ -10,18 +10,12 @@ class Waypoint:
         self.is_fixed = is_fixed # useful for start and goal waypoints
         
     @staticmethod
-    def random_waypoint(obstacles: list[Obstacle], x_range: tuple[float,float]=(0,100), y_range: tuple[float,float]=(0,100), is_fixed: bool=False) -> 'Waypoint':
+    def random_waypoint(x_range: tuple[float,float]=(0,100), y_range: tuple[float,float]=(0,100), is_fixed: bool=False) -> 'Waypoint':
         while True:
             x = np.random.uniform(x_range[0], x_range[1])
             y = np.random.uniform(y_range[0], y_range[1])
             waypoint = Waypoint(x, y, is_fixed)
-            collision = False
-            for obstacle in obstacles:
-                if obstacle.is_point_inside(waypoint.to_array()):
-                    collision = True
-                    break
-            if not collision:
-                return waypoint
+            return waypoint
     
     def to_tuple(self) -> tuple[float, float]:
         return (self.x, self.y)
