@@ -7,7 +7,7 @@ class Particule:
     def __init__(self, path: Path)-> None:
         self.path = path
         
-        self.position : np.ndarray = path.get_array_coords()
+        self.position : np.ndarray = path.get_array_coords(copy=False)
         self.best_position : np.ndarray = self.position.copy()
         self.velocity = np.zeros_like(self.position)
         
@@ -29,7 +29,7 @@ class Particule:
         return self.position
 
     def _sync_after_prune(self)-> None:
-        coords = self.path.get_array_coords()
+        coords = self.path.get_array_coords(copy=False)
         if coords.shape != self.position.shape:
             self.position = coords
             self.velocity = np.zeros_like(coords)
@@ -46,17 +46,18 @@ class Particule:
         pbest = self.best_position[unfixed_mask]
         gbest = best_global_position[unfixed_mask]
 
-        r1 = rd.random()
-        r2 = rd.random()
-        
-        w = hyperparameters['inertia_weight']
+        # Per-dimension random coefficients (canonical PSO — better exploration)
+        r1 = rd.random(v.shape)
+        r2 = rd.random(v.shape)
+
+        w  = hyperparameters['inertia_weight']
         c1 = hyperparameters['best_position_acceleration']
         c2 = hyperparameters['global_best_position_acceleration']
 
         new_velocity = (
-            w * v +
-            c1 * r1 * (pbest - x) +
-            c2 * r2 * (gbest - x)
+            w  * v
+            + c1 * r1 * (pbest - x)
+            + c2 * r2 * (gbest - x)
         )
         self.velocity[unfixed_mask] = new_velocity
         
@@ -66,7 +67,7 @@ class Particule:
         hit_border = self.path.update_positions(new_position, xmax, ymax)
         if hit_border.any():  # If any waypoint hit the border of the environment
             self.velocity[hit_border] = 0.0  # Set velocity to zero for those waypoints
-        self.position = self.path.get_array_coords()
+        self.position = self.path.get_array_coords(copy=False)
             
     def evaluate_fitness(
         self,
@@ -110,10 +111,13 @@ class Particule:
                 )
                 if self.fitness >= original_fitness:
                     self.path = original_path
-                    self.position = original_path.get_array_coords()
+                    self.position = original_path.get_array_coords(copy=False)
                     self.fitness = original_fitness
-                    
                 else:
+                    # Successful DL update: position improved — reset stagnation counter
+                    self.best_position = self.position.copy()
+                    self.best_fitness = self.fitness
+                    self.best_position_unchanged_count = 0
                     if hit_border.any():
                         self.velocity[dim] = 0.0  # zero full waypoint velocity
         
@@ -133,7 +137,7 @@ class Particule:
             hyperparameters['collision_weight'] * collisions +
             hyperparameters['corner_weight'] * corners
         )
-        self.position = self.path.get_array_coords()
+        self.position = self.path.get_array_coords(copy=False)
         
         if fitness < self.best_fitness:
             self.best_position = self.position.copy()

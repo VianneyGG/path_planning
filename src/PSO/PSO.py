@@ -23,6 +23,7 @@ class PSO:
 
         self.hyperparameters = {
             "inertia_weight": self.config.inertia_weight,
+            "inertia_weight_end": self.config.inertia_weight_end,
             "best_position_acceleration": self.config.best_position_acceleration,
             "global_best_position_acceleration": self.config.global_best_position_acceleration,
             "length_weight": self.config.length_weight,
@@ -36,6 +37,7 @@ class PSO:
             "reuse_fitness_thread_pool": self.config.reuse_fitness_thread_pool,
             "corner_check_stride": self.config.corner_check_stride,
             "max_number_of_iterations_without_improvement": self.config.max_number_of_iterations_without_improvement,
+            "vectorized_fitness": self.config.vectorized_fitness,
         }
 
 
@@ -108,7 +110,7 @@ class PSO:
 
         if progress and verbose:
 
-            iterator = tqdm(iterator, desc=f"Pre-heating", leave=False)
+            iterator = tqdm(iterator, desc="Pre-heating", leave=False)
 
 
         for pre_heat_iteration in iterator:
@@ -190,6 +192,7 @@ class PSO:
         verbose: bool,
         capture_history: bool,
         animation_every: int,
+        iteration_callback: Any = None,
         ) -> tuple[Path, list[np.ndarray] | None]:
 
         swarm = self._initialize_swarm()
@@ -224,6 +227,14 @@ class PSO:
 
             pre_heat_initial_probability = acceptance_probability
 
+            # Sync all-time bests from any discoveries made during pre-heat.
+            # Without this, if the main loop never beats the pre-heat optimum,
+            # get_best_path() would return the weaker initial-swarm path.
+            if swarm.global_best_position_fitness < swarm._all_time_best_fitness:
+                swarm._all_time_best_fitness   = swarm.global_best_position_fitness
+                swarm._all_time_best_position  = swarm.global_best_position.copy()
+                swarm._all_time_best_path      = swarm.best_path.copy()
+
 
         if bool(self.config.controlled_cooling) and verbose:
 
@@ -232,9 +243,23 @@ class PSO:
 
         positive_fitness_variations = 0.0
 
+        # Linear inertia weight decay (LDIW-PSO)
+        _w_start = float(self.hyperparameters["inertia_weight"])
+        _w_end   = float(self.hyperparameters.get("inertia_weight_end", _w_start))
+        _n_iters = max(1, int(self.config.number_of_iterations))
 
-        iterations = range(int(self.config.number_of_iterations))
-        reset_interval = max(1, int(self.config.number_of_iterations) // max(1, int(self.config.reset_number)))
+        # Early stopping state
+        _patience = max(0, int(self.config.early_stopping_patience))
+        _no_improve_count = 0
+        # Track the all-time best (never degraded by SA or waypoint resets)
+        # so patience counts genuine stagnation only.
+        _prev_best_fitness = float(swarm._all_time_best_fitness)
+
+        # Adaptive waypoint count: persists across resets (grows when still colliding)
+        _current_nwp = int(self.config.number_of_waypoints)
+
+        iterations = range(_n_iters)
+        reset_interval = max(1, _n_iters // max(1, int(self.config.reset_number)))
 
         if progress:
 
@@ -242,6 +267,12 @@ class PSO:
 
 
         for iteration in iterations:
+
+            # Linear inertia decay: w(t) = w_start + (w_end - w_start) * t / (T-1)
+            if _w_start != _w_end:
+                self.hyperparameters["inertia_weight"] = (
+                    _w_start + (_w_end - _w_start) * iteration / max(1, _n_iters - 1)
+                )
 
             swarm.forward(
 
@@ -277,6 +308,43 @@ class PSO:
             else:
 
                 temperature *= float(self.config.temperature_decay)
+
+            # Early stopping: halt when global best stagnates
+            if _patience > 0:
+                if _prev_best_fitness - swarm._all_time_best_fitness > 1e-8:
+                    _prev_best_fitness = swarm._all_time_best_fitness
+                    _no_improve_count = 0
+                else:
+                    _no_improve_count += 1
+                    if _no_improve_count >= _patience:
+                        if verbose:
+                            print(f"Early stopping at iteration {iteration} "
+                                  f"(no improvement for {_patience} iterations)")
+                        break
+
+            if iteration_callback is not None:
+                try:
+                    # Include current collision count so consumers can track
+                    # when the run first becomes collision-free.
+                    _cb_collisions = int(
+                        swarm.get_best_path().collisions_and_corners(
+                            self.environment,
+                            self.hyperparameters["corner_radius"],
+                            check_corners=False,
+                        )[0]
+                    )
+                    iteration_callback(
+                        {
+                            "iteration": int(iteration),
+                            "best_fitness": float(swarm._all_time_best_fitness),
+                            "collisions": _cb_collisions,
+                            "is_collision_free": _cb_collisions == 0,
+                            "temperature": float(temperature),
+                            "acceptance_probability": float(acceptance_probability),
+                        }
+                    )
+                except Exception:
+                    pass
 
 
             if path_history is not None and iteration % animation_every == 0:
@@ -314,12 +382,27 @@ class PSO:
                 except Exception:
                     pass
 
+                # Adaptive waypoint growth: add one waypoint on reset when the
+                # all-time best path still has collisions (gives the planner
+                # more degrees of freedom to route around obstacles).
+                # NOTE: _current_nwp is declared before the loop so growth
+                # accumulates across multiple resets.
+                if bool(self.config.adaptive_waypoint_growth):
+                    try:
+                        _best_colls, _ = swarm._all_time_best_path.collisions_and_corners(
+                            self.environment,
+                            self.hyperparameters["corner_radius"],
+                            check_corners=False,
+                        )
+                        if _best_colls > 0:
+                            _cap = max(_current_nwp, int(self.config.max_waypoints_cap))
+                            _current_nwp = min(_current_nwp + 1, _cap)
+                    except Exception:
+                        pass
+
                 swarm.reset_waypoints(
-
                     self.environment,
-
-                    int(self.config.number_of_waypoints),
-
+                    _current_nwp,
                     self.hyperparameters,
                 )
 
@@ -338,7 +421,13 @@ class PSO:
 
         return best, path_history
 
-    def run(self, *, progress: bool = False, verbose: bool = False) -> np.ndarray:
+    def run(
+        self,
+        *,
+        progress: bool = False,
+        verbose: bool = False,
+        iteration_callback: Any = None,
+    ) -> np.ndarray:
         """
 
         Run PSO for benchmarking (default silent).
@@ -352,6 +441,8 @@ class PSO:
             capture_history=False,
 
             animation_every=1,
+
+            iteration_callback=iteration_callback,
         )
 
         return best.get_array_coords()
@@ -396,6 +487,8 @@ class PSO:
             capture_history=animation_html_path is not None,
 
             animation_every=animation_every,
+
+            iteration_callback=None,
         )
 
         if animation_html_path is not None: 

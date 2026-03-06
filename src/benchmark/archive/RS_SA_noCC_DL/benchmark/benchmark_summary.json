@@ -1,0 +1,125 @@
+{
+  "mode": "compare",
+  "algo": "RS_SA_noCC_DL",
+  "scenarios": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "runs": 500,
+  "num_rows": 5000,
+  "group_metrics": [
+    {
+      "scenario": 0,
+      "algo": "RS_SA_noCC_DL",
+      "runs": 500,
+      "fitness_mean": 2.3054216915217665,
+      "fitness_var": 0.1412464307352226,
+      "time_mean": 0.11825139679991116,
+      "time_var": 0.0005590914136726249,
+      "collision_free_mean": 0.996,
+      "collision_free_var": 0.003991983967935871
+    },
+    {
+      "scenario": 0,
+      "algo": "vanilla",
+      "runs": 500,
+      "fitness_mean": 1.5375026326668306,
+      "fitness_var": 0.10515420667228369,
+      "time_mean": 0.10504503579995071,
+      "time_var": 0.00047019655474659814,
+      "collision_free_mean": 0.998,
+      "collision_free_var": 0.002
+    },
+    {
+      "scenario": 1,
+      "algo": "RS_SA_noCC_DL",
+      "runs": 500,
+      "fitness_mean": 2.623057509757462,
+      "fitness_var": 0.15014457462988748,
+      "time_mean": 0.6742448590000567,
+      "time_var": 0.007319021597853358,
+      "collision_free_mean": 0.996,
+      "collision_free_var": 0.003991983967935872
+    },
+    {
+      "scenario": 1,
+      "algo": "vanilla",
+      "runs": 500,
+      "fitness_mean": 1.8360986571559013,
+      "fitness_var": 0.10906398651567462,
+      "time_mean": 0.6597048029999715,
+      "time_var": 0.006984264044769056,
+      "collision_free_mean": 0.996,
+      "collision_free_var": 0.003991983967935871
+    },
+    {
+      "scenario": 2,
+      "algo": "RS_SA_noCC_DL",
+      "runs": 500,
+      "fitness_mean": 3.889351266176038,
+      "fitness_var": 4.104567398283829,
+      "time_mean": 3.340272588999986,
+      "time_var": 0.3899400999432961,
+      "collision_free_mean": 0.768,
+      "collision_free_var": 0.17853306613226458
+    },
+    {
+      "scenario": 2,
+      "algo": "vanilla",
+      "runs": 500,
+      "fitness_mean": 4.272310687014972,
+      "fitness_var": 4.024207433119806,
+      "time_mean": 2.080974207400046,
+      "time_var": 0.0952952306405796,
+      "collision_free_mean": 0.718,
+      "collision_free_var": 0.20288176352705406
+    },
+    {
+      "scenario": 3,
+      "algo": "RS_SA_noCC_DL",
+      "runs": 500,
+      "fitness_mean": 11.541965847720697,
+      "fitness_var": 7.808710369319454,
+      "time_mean": 8.797446552200046,
+      "time_var": 7.101985695016144,
+      "collision_free_mean": 0.082,
+      "collision_free_var": 0.07542685370741485
+    },
+    {
+      "scenario": 3,
+      "algo": "vanilla",
+      "runs": 500,
+      "fitness_mean": 14.434877529958083,
+      "fitness_var": 18.203817316233383,
+      "time_mean": 3.4283741370001297,
+      "time_var": 0.3708445376253094,
+      "collision_free_mean": 0.01,
+      "collision_free_var": 0.0099198396793587
+    },
+    {
+      "scenario": 4,
+      "algo": "RS_SA_noCC_DL",
+      "runs": 500,
+      "fitness_mean": 11.629980165217011,
+      "fitness_var": 6.797989433073843,
+      "time_mean": 17.313889469600078,
+      "time_var": 65.05347844172624,
+      "collision_free_mean": 0.018,
+      "collision_free_var": 0.01771142284569137
+    },
+    {
+      "scenario": 4,
+      "algo": "vanilla",
+      "runs": 500,
+      "fitness_mean": 16.462732131735677,
+      "fitness_var": 17.666574330372544,
+      "time_mean": 7.738341427399871,
+      "time_var": 2.542116303087568,
+      "collision_free_mean": 0.006,
+      "collision_free_var": 0.005975951903807616
+    }
+  ]
+}

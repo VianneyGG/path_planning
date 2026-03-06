@@ -1,0 +1,44 @@
+{
+  "mode": "compare",
+  "algo": "RS_SA_PH",
+  "scenarios": [
+    0
+  ],
+  "runs": 2,
+  "chunk_size": 1,
+  "adaptive_chunking": true,
+  "n_jobs": 1,
+  "force_single_thread_fitness": false,
+  "log_test_loss_curves": true,
+  "collision_penalty": 50.0,
+  "non_collision_free_penalty": 200.0,
+  "time_weight": 5.0,
+  "test_loss_file": "C:\\Users\\LeV\\Projects\\path_planing\\src\\benchmark\\artifacts\\_smoke_testloss_impl\\benchmark\\benchmark_test_loss_curves.parquet",
+  "vanilla_params_source": "src\\benchmark\\artifacts\\basic\\tuning\\tuning_summary.json",
+  "chunk_log_file": "C:\\Users\\LeV\\Projects\\path_planing\\src\\benchmark\\artifacts\\_smoke_testloss_impl\\benchmark\\benchmark_run_log.jsonl",
+  "num_rows": 4,
+  "group_metrics": [
+    {
+      "scenario": 0,
+      "algo": "RS_SA_PH",
+      "runs": 2,
+      "fitness_mean": 2.03856038,
+      "fitness_var": 0.0006875634451242825,
+      "time_mean": 0.4493738499986648,
+      "time_var": 0.0017492252075263016,
+      "collision_free_mean": 1.0,
+      "collision_free_var": 0.0
+    },
+    {
+      "scenario": 0,
+      "algo": "vanilla",
+      "runs": 2,
+      "fitness_mean": 1.8726702770439714,
+      "fitness_var": 4.9697099947580786e-05,
+      "time_mean": 0.07111649999933434,
+      "time_var": 8.826155516009502e-05,
+      "collision_free_mean": 1.0,
+      "collision_free_var": 0.0
+    }
+  ]
+}

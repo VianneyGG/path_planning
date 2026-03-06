@@ -41,7 +41,7 @@
       "best_target": -2.1891930992113977,
       "best_params_raw": {
         "number_of_particules": 75.88058414799882,
-        "number_of_iterations": 5.0,
+        "number_of_iterations": 20.0,
         "number_of_waypoints": 1.0,
         "inertia_weight": 0.9,
         "best_position_acceleration": 2.5,
@@ -49,7 +49,7 @@
       },
       "best_params": {
         "number_of_particules": 76,
-        "number_of_iterations": 5,
+        "number_of_iterations": 20,
         "number_of_waypoints": 1,
         "inertia_weight": 0.9,
         "best_position_acceleration": 2.5,
@@ -84,7 +84,7 @@
       "best_target": -1.9982249050522114,
       "best_params_raw": {
         "number_of_particules": 29.278688173298587,
-        "number_of_iterations": 13.40346313642625,
+        "number_of_iterations": 40.0,
         "number_of_waypoints": 1.0,
         "inertia_weight": 0.9,
         "best_position_acceleration": 2.5,
@@ -92,7 +92,7 @@
       },
       "best_params": {
         "number_of_particules": 29,
-        "number_of_iterations": 13,
+        "number_of_iterations": 40,
         "number_of_waypoints": 1,
         "inertia_weight": 0.9,
         "best_position_acceleration": 2.5,
@@ -127,7 +127,7 @@
       "best_target": -3.8955008856795836,
       "best_params_raw": {
         "number_of_particules": 73.22730541731815,
-        "number_of_iterations": 46.800351670595916,
+        "number_of_iterations": 60.0,
         "number_of_waypoints": 1.0,
         "inertia_weight": 0.9,
         "best_position_acceleration": 2.5,
@@ -135,7 +135,7 @@
       },
       "best_params": {
         "number_of_particules": 73,
-        "number_of_iterations": 47,
+        "number_of_iterations": 60,
         "number_of_waypoints": 1,
         "inertia_weight": 0.9,
         "best_position_acceleration": 2.5,
@@ -170,7 +170,7 @@
       "best_target": -57.304339562463625,
       "best_params_raw": {
         "number_of_particules": 6.873550630053669,
-        "number_of_iterations": 68.18516023249555,
+        "number_of_iterations": 100.0,
         "number_of_waypoints": 1.3853930286395646,
         "inertia_weight": 0.6222752334747177,
         "best_position_acceleration": 2.2596587338892222,
@@ -178,13 +178,13 @@
       },
       "best_params": {
         "number_of_particules": 7,
-        "number_of_iterations": 68,
+        "number_of_iterations": 100,
         "number_of_waypoints": 1,
         "inertia_weight": 0.6222752334747177,
         "best_position_acceleration": 2.2596587338892222,
         "global_best_position_acceleration": 1.8363030607338224,
         "reset_waypoints": false,
-        "reset_number": 4,
+        "reset_number": 2,
         "simulated_annealing": false,
         "initial_temperature": 20.0,
         "temperature_decay": 0.99,
@@ -213,7 +213,7 @@
       "best_target": -23.217188335687474,
       "best_params_raw": {
         "number_of_particules": 135.60688860875777,
-        "number_of_iterations": 123.61447181602286,
+        "number_of_iterations": 300.0,
         "number_of_waypoints": 7.0,
         "inertia_weight": 0.4,
         "best_position_acceleration": 2.5,
@@ -221,13 +221,13 @@
       },
       "best_params": {
         "number_of_particules": 136,
-        "number_of_iterations": 124,
+        "number_of_iterations": 300,
         "number_of_waypoints": 7,
         "inertia_weight": 0.4,
         "best_position_acceleration": 2.5,
         "global_best_position_acceleration": 2.5,
         "reset_waypoints": false,
-        "reset_number": 1,
+        "reset_number": 3,
         "simulated_annealing": false,
         "initial_temperature": 20.0,
         "temperature_decay": 0.99,

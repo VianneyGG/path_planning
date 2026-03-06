@@ -1,12 +1,7 @@
-from shapely.geometry import LineString, Polygon, box
+from shapely.geometry import Polygon
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Optional, Sequence, Tuple, Union
-
-try:
-    from shapely.strtree import STRtree
-except Exception:  # pragma: no cover
-    STRtree = None
 
 
 class Obstacle:
@@ -48,17 +43,70 @@ class Environment:
         self.R = None
         self.obstacles = []
         self.path = None
-        self._obstacle_tree = None
-        self._poly_to_obstacle = {}
+        self._obs_minx = np.array([], dtype=float)
+        self._obs_miny = np.array([], dtype=float)
+        self._obs_maxx = np.array([], dtype=float)
+        self._obs_maxy = np.array([], dtype=float)
+        self._all_corners = np.empty((0, 2), dtype=float)
 
     def _rebuild_obstacle_index(self) -> None:
-        self._obstacle_tree = None
-        self._poly_to_obstacle = {}
-        if not self.obstacles or STRtree is None:
-            return
-        polygons = [obs.polygon for obs in self.obstacles]
-        self._obstacle_tree = STRtree(polygons)
-        self._poly_to_obstacle = {id(poly): obs for poly, obs in zip(polygons, self.obstacles)}
+        if self.obstacles:
+            bounds = np.array([obs.bounds for obs in self.obstacles], dtype=float)
+            self._obs_minx = bounds[:, 0]
+            self._obs_miny = bounds[:, 1]
+            self._obs_maxx = bounds[:, 2]
+            self._obs_maxy = bounds[:, 3]
+            self._all_corners = np.vstack([obs.corners for obs in self.obstacles])
+        else:
+            self._obs_minx = np.array([], dtype=float)
+            self._obs_miny = np.array([], dtype=float)
+            self._obs_maxx = np.array([], dtype=float)
+            self._obs_maxy = np.array([], dtype=float)
+            self._all_corners = np.empty((0, 2), dtype=float)
+
+    @staticmethod
+    def _segment_intersects_rectangles(
+        p1: np.ndarray,
+        p2: np.ndarray,
+        xmin: np.ndarray,
+        ymin: np.ndarray,
+        xmax: np.ndarray,
+        ymax: np.ndarray,
+    ) -> np.ndarray:
+        x0 = float(p1[0])
+        y0 = float(p1[1])
+        dx = float(p2[0] - p1[0])
+        dy = float(p2[1] - p1[1])
+
+        eps = 1e-12
+        t_enter = np.zeros_like(xmin, dtype=float)
+        t_exit = np.ones_like(xmin, dtype=float)
+
+        if abs(dx) < eps:
+            valid_x = (x0 >= xmin) & (x0 <= xmax)
+        else:
+            inv_dx = 1.0 / dx
+            tx1 = (xmin - x0) * inv_dx
+            tx2 = (xmax - x0) * inv_dx
+            tmin_x = np.minimum(tx1, tx2)
+            tmax_x = np.maximum(tx1, tx2)
+            t_enter = np.maximum(t_enter, tmin_x)
+            t_exit = np.minimum(t_exit, tmax_x)
+            valid_x = np.ones_like(xmin, dtype=bool)
+
+        if abs(dy) < eps:
+            valid_y = (y0 >= ymin) & (y0 <= ymax)
+        else:
+            inv_dy = 1.0 / dy
+            ty1 = (ymin - y0) * inv_dy
+            ty2 = (ymax - y0) * inv_dy
+            tmin_y = np.minimum(ty1, ty2)
+            tmax_y = np.maximum(ty1, ty2)
+            t_enter = np.maximum(t_enter, tmin_y)
+            t_exit = np.minimum(t_exit, tmax_y)
+            valid_y = np.ones_like(ymin, dtype=bool)
+
+        return valid_x & valid_y & (t_enter <= t_exit) & (t_exit >= 0.0) & (t_enter <= 1.0)
 
     def from_file(self, filename):
         try:
@@ -185,45 +233,200 @@ class Environment:
         if ax is None:
             plt.show(block=True)
     
+    def __getstate__(self) -> dict:
+        """Custom pickle support: exclude heavy Shapely Polygon objects.
+
+        Polygon is only needed for ``render()``; all fitness-relevant state is
+        in the numpy arrays and Obstacle scalar fields.  Excluding it cuts
+        pickle/unpickle time significantly when environments are sent to loky
+        workers via joblib.
+        """
+        state = self.__dict__.copy()
+        # Replace Obstacle objects with lightweight plain dicts
+        state['obstacles'] = [
+            {'x': o.x, 'y': o.y, 'lx': o.lx, 'ly': o.ly}
+            for o in self.obstacles
+        ]
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        obs_dicts = state.pop('obstacles')
+        self.__dict__.update(state)
+        # Reconstruct full Obstacle objects (Polygon rebuilt in __init__)
+        self.obstacles = [Obstacle(d['x'], d['y'], d['lx'], d['ly']) for d in obs_dicts]
+
     def get_obstacles(self) -> List[Obstacle]:
         return self.obstacles
     
     def check_line_collision(self, p1: np.ndarray, p2: np.ndarray) -> int:
-        nb_collisions = 0
         p1 = np.asarray(p1, dtype=float)
         p2 = np.asarray(p2, dtype=float)
-        line = LineString([p1, p2])
+
+        if self._obs_minx.size == 0:
+            return 0
 
         minx = min(float(p1[0]), float(p2[0]))
         maxx = max(float(p1[0]), float(p2[0]))
         miny = min(float(p1[1]), float(p2[1]))
         maxy = max(float(p1[1]), float(p2[1]))
 
-        candidates = self.obstacles
-        if self._obstacle_tree is not None and len(self.obstacles) >= 20:
-            query_geom = box(minx, miny, maxx, maxy)
-            geoms = self._obstacle_tree.query(query_geom)
-            candidates = [self._poly_to_obstacle.get(id(poly)) for poly in geoms]
+        overlap = (
+            (self._obs_maxx >= minx)
+            & (self._obs_minx <= maxx)
+            & (self._obs_maxy >= miny)
+            & (self._obs_miny <= maxy)
+        )
+        if not np.any(overlap):
+            return 0
 
-        for obs in candidates:
-            if obs is None:
-                continue
-            ox0, oy0, ox1, oy1 = obs.bounds
-            if maxx < ox0 or minx > ox1 or maxy < oy0 or miny > oy1:
-                continue
-            if line.intersects(obs.polygon):
-                nb_collisions += 1
-        return nb_collisions
+        xmin = self._obs_minx[overlap]
+        ymin = self._obs_miny[overlap]
+        xmax = self._obs_maxx[overlap]
+        ymax = self._obs_maxy[overlap]
+
+        hits = self._segment_intersects_rectangles(p1, p2, xmin, ymin, xmax, ymax)
+        return int(np.count_nonzero(hits))
     
     def near_obstacle_corner(self, point: np.ndarray, radius: float) -> bool:
+        if self._all_corners.size == 0:
+            return False
         px, py = point
         radius2 = float(radius) * float(radius)
-        point_arr = np.array([px, py], dtype=float)
-        for obs in self.obstacles:
-            deltas = obs.corners - point_arr
-            if np.any(np.sum(deltas * deltas, axis=1) <= radius2):
-                return True
-        return False
+        dx = self._all_corners[:, 0] - float(px)
+        dy = self._all_corners[:, 1] - float(py)
+        return bool(np.any(dx * dx + dy * dy <= radius2))
+
+    def _collisions_from_segments(self, starts: np.ndarray, ends: np.ndarray) -> np.ndarray:
+        """Core vectorized slab-intersection test for arbitrary (S, 2) segment endpoints.
+
+        Parameters
+        ----------
+        starts, ends : ndarray, shape (S, 2)
+
+        Returns
+        -------
+        ndarray of int, shape (S,) -- collision count per segment.
+        """
+        S = len(starts)
+        if S == 0 or self._obs_minx.size == 0:
+            return np.zeros(S, dtype=int)
+
+        # Per-segment bounding box
+        seg_minx = np.minimum(starts[:, 0], ends[:, 0])[:, np.newaxis]  # (S, 1)
+        seg_maxx = np.maximum(starts[:, 0], ends[:, 0])[:, np.newaxis]
+        seg_miny = np.minimum(starts[:, 1], ends[:, 1])[:, np.newaxis]
+        seg_maxy = np.maximum(starts[:, 1], ends[:, 1])[:, np.newaxis]
+
+        # AABB overlap filter: (S, O)
+        ox_min = self._obs_minx[np.newaxis, :]  # (1, O)
+        ox_max = self._obs_maxx[np.newaxis, :]
+        oy_min = self._obs_miny[np.newaxis, :]
+        oy_max = self._obs_maxy[np.newaxis, :]
+
+        aabb = (
+            (ox_max >= seg_minx) & (ox_min <= seg_maxx) &
+            (oy_max >= seg_miny) & (oy_min <= seg_maxy)
+        )  # (S, O)
+        if not np.any(aabb):
+            return np.zeros(S, dtype=int)
+
+        # Slab intersection test, fully vectorized over (S, O)
+        x0 = starts[:, 0:1]            # (S, 1)
+        y0 = starts[:, 1:2]
+        dx = (ends - starts)[:, 0:1]   # (S, 1)
+        dy = (ends - starts)[:, 1:2]
+
+        eps = 1e-12
+
+        # X slab
+        nonhoriz = np.abs(dx) >= eps
+        safe_dx  = np.where(nonhoriz, dx, 1.0)
+        tx1 = (ox_min - x0) / safe_dx
+        tx2 = (ox_max - x0) / safe_dx
+        t_enter_x = np.where(nonhoriz, np.minimum(tx1, tx2), 0.0)
+        t_exit_x  = np.where(nonhoriz, np.maximum(tx1, tx2), 1.0)
+        valid_x   = np.where(nonhoriz, np.ones((S, 1), dtype=bool),
+                             (x0 >= ox_min) & (x0 <= ox_max))
+
+        # Y slab
+        nonvert = np.abs(dy) >= eps
+        safe_dy = np.where(nonvert, dy, 1.0)
+        ty1 = (oy_min - y0) / safe_dy
+        ty2 = (oy_max - y0) / safe_dy
+        t_enter_y = np.where(nonvert, np.minimum(ty1, ty2), 0.0)
+        t_exit_y  = np.where(nonvert, np.maximum(ty1, ty2), 1.0)
+        valid_y   = np.where(nonvert, np.ones((S, 1), dtype=bool),
+                             (y0 >= oy_min) & (y0 <= oy_max))
+
+        t_ent = np.maximum(t_enter_x, t_enter_y)
+        t_ext = np.minimum(t_exit_x,  t_exit_y)
+
+        hits = (
+            valid_x & valid_y
+            & (t_ent <= t_ext) & (t_ext >= 0.0) & (t_ent <= 1.0)
+            & aabb
+        )  # (S, O)
+        return hits.sum(axis=1).astype(int)  # (S,)
+
+    def check_path_collisions(self, coords: np.ndarray) -> np.ndarray:
+        """Vectorized collision count for every consecutive segment in `coords`.
+
+        Parameters
+        ----------
+        coords : ndarray, shape (N, 2)
+            Waypoint coordinates. Defines N-1 segments.
+
+        Returns
+        -------
+        ndarray of int, shape (N-1,)
+            Number of obstacle collisions per segment.
+        """
+        n_seg = len(coords) - 1
+        if n_seg <= 0:
+            return np.zeros(max(0, n_seg), dtype=int)
+        return self._collisions_from_segments(coords[:-1], coords[1:])
+
+    def check_paths_collisions_batch(self, all_coords: np.ndarray) -> np.ndarray:
+        """Vectorized total collision count for P particles simultaneously.
+
+        Parameters
+        ----------
+        all_coords : ndarray, shape (P, N, 2)
+            Stacked waypoint arrays for P particles, each with N waypoints.
+
+        Returns
+        -------
+        ndarray of int, shape (P,)
+            Total collision count (summed over all N-1 segments) per particle.
+        """
+        P, N, _ = all_coords.shape
+        S_total = P * (N - 1)
+        if S_total <= 0:
+            return np.zeros(P, dtype=int)
+        starts_all = all_coords[:, :-1, :].reshape(S_total, 2)
+        ends_all   = all_coords[:, 1:,  :].reshape(S_total, 2)
+        per_seg = self._collisions_from_segments(starts_all, ends_all)  # (S_total,)
+        return per_seg.reshape(P, N - 1).sum(axis=1).astype(int)        # (P,)
+
+    def check_path_corners(self, points: np.ndarray, radius: float) -> np.ndarray:
+        """Vectorized near-corner check for multiple points.
+
+        Parameters
+        ----------
+        points : ndarray, shape (N, 2)
+        radius : float
+
+        Returns
+        -------
+        ndarray of bool, shape (N,)
+        """
+        if self._all_corners.size == 0 or len(points) == 0:
+            return np.zeros(len(points), dtype=bool)
+        radius2 = float(radius) ** 2
+        # (N, C) distance squared
+        diff  = points[:, np.newaxis, :] - self._all_corners[np.newaxis, :, :]  # (N, C, 2)
+        dist2 = (diff * diff).sum(axis=2)                                        # (N, C)
+        return np.any(dist2 <= radius2, axis=1)  # (N,)
 
 if __name__ == "__main__":
     env = Environment()

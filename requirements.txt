@@ -8,3 +8,4 @@ pyarrow
 bayesian-optimization
 joblib
 seaborn
+optuna

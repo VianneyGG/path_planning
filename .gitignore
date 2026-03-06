@@ -187,3 +187,10 @@ cython_debug/
 
 environment.yml
 .DS_Store
+
+# Generated benchmark outputs
+src/benchmark/artifacts/**
+!src/benchmark/artifacts/.gitkeep
+
+# Derived docs/exports
+flowchart TD.html

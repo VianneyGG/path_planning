@@ -1,0 +1,106 @@
+{
+  "algo": "RS_SA_CC_DL",
+  "scenarios": [
+    0
+  ],
+  "search_space": {
+    "number_of_particules": [
+      10.0,
+      150.0
+    ],
+    "number_of_iterations": [
+      50.0,
+      500.0
+    ],
+    "inertia_weight": [
+      0.4,
+      0.9
+    ],
+    "best_position_acceleration": [
+      1.0,
+      2.5
+    ],
+    "global_best_position_acceleration": [
+      1.0,
+      2.5
+    ],
+    "reset_number": [
+      1.0,
+      4.0
+    ],
+    "initial_temperature": [
+      2.0,
+      60.0
+    ],
+    "acceptance_probability_decay": [
+      0.985,
+      0.9999
+    ],
+    "collision_weight": [
+      5.0,
+      60.0
+    ],
+    "corner_weight": [
+      -0.2,
+      1.5
+    ],
+    "max_number_of_iterations_without_improvement": [
+      25.0,
+      50.0
+    ]
+  },
+  "global": null,
+  "per_scenario": [
+    {
+      "scenario": 0,
+      "algo": "RS_SA_CC_DL",
+      "best_target": 472.2873923818566,
+      "best_params_raw": {
+        "number_of_particules": 119.73652911280509,
+        "number_of_iterations": 335.6751677237286,
+        "inertia_weight": 0.5245215457578745,
+        "best_position_acceleration": 2.1371137969747265,
+        "global_best_position_acceleration": 1.4696154034475197,
+        "reset_number": 3.8117120724651925,
+        "initial_temperature": 4.4861960044313065,
+        "acceptance_probability_decay": 0.9915689213311041,
+        "collision_weight": 55.19972594643587,
+        "corner_weight": 0.573506662175524,
+        "max_number_of_iterations_without_improvement": 37.69835851759479,
+        "number_of_waypoints": 1.0
+      },
+      "best_params": {
+        "number_of_particules": 120,
+        "number_of_iterations": 336,
+        "number_of_waypoints": 1,
+        "inertia_weight": 0.5245215457578745,
+        "best_position_acceleration": 2.1371137969747265,
+        "global_best_position_acceleration": 1.4696154034475197,
+        "reset_waypoints": true,
+        "reset_number": 4,
+        "simulated_annealing": true,
+        "initial_temperature": 4.4861960044313065,
+        "temperature_decay": 0.99,
+        "pre_heat": true,
+        "pre_heat_learning_rate": 0.1,
+        "pre_heat_max_iterations": 200,
+        "pre_heat_target_acceptance_rate": 0.95,
+        "controlled_cooling": true,
+        "acceptance_probability_decay": 0.9915689213311041,
+        "dimensional_learning": true,
+        "parallel_fitness_workers": 1,
+        "reuse_fitness_thread_pool": true,
+        "corner_check_stride": 1,
+        "max_number_of_iterations_without_improvement": 38,
+        "length_weight": 0.001,
+        "smoothness_weight": 1.0,
+        "collision_weight": 55.19972594643587,
+        "corner_weight": 0.573506662175524,
+        "corner_radius": 5.0,
+        "prune_straight_angles": false,
+        "straight_angle_tolerance": 0.01
+      },
+      "total_trials": 1
+    }
+  ]
+}

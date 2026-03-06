@@ -19,6 +19,17 @@ class Path:
     def _rebuild_cache(self) -> None:
         self._coords = np.array([[wp.x, wp.y] for wp in self.waypoints], dtype=float)
         self._fixed_mask = np.array([wp.is_fixed for wp in self.waypoints], dtype=bool)
+
+    def _sync_waypoints_from_coords(self) -> None:
+        """Sync Waypoint objects from the authoritative ``_coords`` array.
+
+        ``_coords`` is the single source of truth for non-fixed positions;
+        Waypoint objects are lazy-synced only where the caller needs them.
+        """
+        for i, wp in enumerate(self.waypoints):
+            if not wp.is_fixed:
+                wp.x = float(self._coords[i, 0])
+                wp.y = float(self._coords[i, 1])
         
     @staticmethod
     def initialize_path(env: Environment, number_of_waypoints: int)-> 'Path':
@@ -31,7 +42,9 @@ class Path:
         waypoints.append(Waypoint(x, y, is_fixed=True))  # Goal waypoint
         return Path(waypoints)
     
-    def get_waypoints(self)-> list[Waypoint]:
+    def get_waypoints(self) -> list[Waypoint]:
+        """Return waypoints with positions synced from the internal coords array."""
+        self._sync_waypoints_from_coords()
         return self.waypoints
 
     def add_waypoint(self, waypoint: Waypoint)-> None:
@@ -52,23 +65,32 @@ class Path:
         segments = self._coords[1:] - self._coords[:-1]
         return float(np.linalg.norm(segments, axis=1).sum())
     
-    def copy(self)-> 'Path':
-        copied_waypoints = [wp.copy() for wp in self.waypoints]
-        return Path(copied_waypoints)
+    def copy(self) -> 'Path':
+        """Return a deep copy built from ``_coords``/``_fixed_mask`` (the source of truth)."""
+        new_wps = [
+            Waypoint(float(self._coords[i, 0]), float(self._coords[i, 1]), bool(self._fixed_mask[i]))
+            for i in range(len(self._coords))
+        ]
+        return Path(new_wps)
     
-    def collisions_and_corners(self, environment: Environment, radius: float, check_corners: bool = True)-> int:
-        collisions, corners = 0, 0
-        for i in range(1, len(self._coords)):
-            p1 = self._coords[i - 1]
-            p2 = self._coords[i]
-            collisions += environment.check_line_collision(p1, p2)
-            if check_corners and environment.near_obstacle_corner(p1, radius):
-                corners += 1
+    def collisions_and_corners(
+        self, environment: Environment, radius: float, check_corners: bool = True
+    ) -> tuple[int, int]:
+        """Return ``(num_collisions, num_corner_points)`` using vectorized env methods."""
+        if len(self._coords) < 2:
+            return 0, 0
+        per_seg = environment.check_path_collisions(self._coords)
+        collisions = int(per_seg.sum())
+        corners = 0
+        if check_corners:
+            near = environment.check_path_corners(self._coords[:-1], radius)
+            corners = int(near.sum())
         return collisions, corners
 
     def prune_waypoints(self, indices: list[int]) -> None:
         if not indices:
             return
+        self._sync_waypoints_from_coords()  # ensure Waypoint objects are up-to-date before filtering
         to_drop = set(indices)
         self.waypoints = [wp for idx, wp in enumerate(self.waypoints) if idx not in to_drop]
         self._rebuild_cache()
@@ -132,12 +154,8 @@ class Path:
 
         movable = ~self._fixed_mask
         self._coords[movable] = clamped[movable]
-
-        for i, wp in enumerate(self.waypoints):
-            if wp.is_fixed:
-                continue
-            wp.x = float(self._coords[i, 0])
-            wp.y = float(self._coords[i, 1])
+        # Waypoint objects are lazy-synced via _sync_waypoints_from_coords() / get_waypoints();
+        # no per-step sync needed here — _coords is the authoritative store.
 
         return hit_border
     

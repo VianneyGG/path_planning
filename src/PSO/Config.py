@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any, Dict
 
+from src.benchmark.core.algo_profiles import DEFAULT_RESET_NUMBER
+
 
 @dataclass
 class PSOConfig:
@@ -16,7 +18,7 @@ class PSOConfig:
     global_best_position_acceleration: float = 1.5
     # Reset waypoints
     reset_waypoints: bool = True
-    reset_number: int = 2
+    reset_number: int = DEFAULT_RESET_NUMBER
     # Simulated annealing parameters
     simulated_annealing: bool = True
     initial_temperature: float = 5.0
@@ -42,6 +44,22 @@ class PSOConfig:
     # Extension parameters
     prune_straight_angles: bool = False
     straight_angle_tolerance: float = 1e-2
+    # Linear inertia weight decay (LDIW-PSO): w decays linearly from
+    # inertia_weight → inertia_weight_end over all iterations.
+    # Default: same as inertia_weight → LDIW disabled.  Set a lower value
+    # (e.g. 0.4) to enable decay.  A value ≥ inertia_weight is a no-op.
+    inertia_weight_end: float = 0.5
+    # Early stopping: break when the global best has not improved by more
+    # than 1e-8 for this many consecutive iterations.  0 = disabled.
+    early_stopping_patience: int = 0
+    # Adaptive waypoint growth on reset: if the all-time-best path still has
+    # collisions at reset time, add one extra waypoint (up to max_waypoints_cap).
+    adaptive_waypoint_growth: bool = False
+    max_waypoints_cap: int = 10
+    # Vectorised batch fitness: evaluate all particles in one numpy pass
+    # instead of a per-particle loop / thread pool.
+    # Requires dimensional_learning=False and prune_straight_angles=False.
+    vectorized_fitness: bool = False
 
     def __post_init__(self) -> None:
         self.parallel_fitness_workers = max(1, int(self.parallel_fitness_workers))

@@ -1,99 +1,148 @@
 # path_planing
-Code for the INF421 Path Planing Course
 
-# Setting up the environment
+2D path planning project with RRT and PSO algorithms.
 
-## Question 1
+## Requirements
 
-For this question, we decied to use a class ```Environment``` to capture the input and to represent an instance of a path planning problem. This acts as an interface for the different algorithms to interact with, facilitating rendering of different scenarios. 
+- Python 3.13
+- Scenario files in `scenarios/`
 
-## Question 2
+## Setup (choose one)
 
-We wrote the method ```render``` that shows a particular environment to the user. We used the libraries `matplotlib` and `shapely.geometry` to render the geometry.
-To represent the path, we designed an abstract class `AbstractWaypoint` to represent a point in space and possibly other attributes specific to an algorithm. Similarly, the abstract class `AbstractPath` represents a collection of `Waypoints`.
-
-# A first approach: Particle Swarm Optimization (PSO)
-
-$S$: Number of particles
-
-$k$: iteration step
-
-Particle $i$ caracterized by postion $x_i^k$ and velocity $v_i^k$ at time $k$
-
-$$
-\begin{equation}
-v_i^{k+1} = wv_i^k + c_1 r_1 (p_i^k - x_i^k + c_2 r_2 (g^k - x_i^k)) \\
-\end{equation}
-$$
-$$
-\begin{equation}
-x_i^{k+1} = x_i^k + v_i^k+1
-\end{equation}
-$$
-$c_1, c_2$: acceleration coefficients, which control the influence of the local and global best solutions
-
-$w$: inertia weight for velocity
-
-$r_1, r_2$: random variables uniformly sampled on $[0,1]$
-
-
-## Question 3
-
---
-
-## PSO Bayesian hyperparameter optimization (per scenario)
-
-Run Bayesian optimization for PSO on one or more scenarios with:
+### Option A: uv (recommended)
 
 ```bash
-python -m src.benchmarking.PSO_byesian_hyperparameters_optimization --scenarios 0 1 2 3 4 --init-points 20 --n-iter 100 --out-dir benchmark_results_bayes
+uv python install 3.13
+uv venv --python 3.13
+uv pip install -r requirements.txt
 ```
 
-If you are on Windows and want to guarantee the conda environment is fully active (DLL paths included), run:
+### Option B: conda
 
 ```bash
-conda run -n path_planning python -m src.benchmarking.PSO_byesian_hyperparameters_optimization --scenarios 0 1 2 3 4 --init-points 20 --n-iter 100 --out-dir benchmark_results_bayes
+conda env create -f environment.yml
+conda activate path_planning
 ```
 
-Notes:
-- `dimensional_learning=False` and `simulated_annealing=False` are forced in this benchmark.
-- Objective is collision-aware: collision-free paths are prioritized.
+### Option C: venv + pip
 
-Generated files in output directory:
-- `pso_runs.feather`: one row per Bayesian trial evaluation.
-- `pso_paths.feather`: best path coordinates found for each trial.
-- `scenarioX_best.json`: best config and metrics for each scenario.
-- `bayes_summary.json`: global summary across scenarios.
-
-
-# A second approach: Rapidly-exploring Random Tree (RRT)
-
-## Question 13
-
-We propose to use a recursive definition for the Tree:
-```
-TreeNode: 
-    Position: Waypoint           # position of the node in space
-    Children: [TreeNode] | None  # not fixed size 
-    Parent:   TreeNode   | None  # Parent Node used for backtracking
+```bash
+python -m venv .venv
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
-## Question 14
+## Quick start
 
-Thanks to the Parent attribute to our Tree datastructure, we can easily backtrack by iteratively looking at the node's parent until reaching None Parent, meaning that we reached the root of the tree.
+Run one of the available modes:
 
-## Question 15
-
+```bash
+python main.py rrt
+python main.py pso
+python main.py multi
 ```
-Pseudocode for RRT:
-Initialise the Root to the StartPosition
-While Stopping Criteria Not Met:
-    While True
-        Sample v_r randomly within the grid
-        Find v_n the closest node to v_r within the existing nodes such that the path from v := v_n + delta * (v_r - v_n) / |v_r - v_n| and v_n does not cross an obstacle.
-        If no such point exists, find a new v_r and repeat.
-        Else, break out of the while loop.
-    Add v to the Children of v_n and set v_n as the parent of v
 
+Optional animation:
 
+```bash
+python main.py rrt 0 --animate
 ```
+
+## Benchmark pipeline
+
+Run tuning + benchmarking + reporting + plots:
+
+```bash
+python -m src.benchmark.run_pipeline --algo RS_SA_noCC_DL --scenarios 0 1 2 3 4
+```
+
+Outputs are written under:
+
+- `src/benchmark/artifacts/<ALGO>/tuning/`
+- `src/benchmark/artifacts/<ALGO>/benchmark/`
+- `src/benchmark/artifacts/<ALGO>/plots/`
+
+### `run_pipeline` CLI reference
+
+Main command:
+
+```bash
+python -m src.benchmark.run_pipeline --algo RS_SA_PH --mode compare --exp-id RS_SA_PH
+```
+
+Key arguments:
+
+- `--algo`: tuned algorithm key (ex: `RS`, `RS_SA_noCC`, `RS_SA_PH`, `RS_SA_CC_DL`)
+- `--scenarios`: list of scenarios (default: `0 1 2 3 4`)
+- `--runs`: benchmark runs per algo/scenario
+- `--n-jobs`: outer parallel workers
+- `--chunk-size`: benchmark chunk size (default `24`, safe baseline)
+- `--adaptive-chunking` / `--no-adaptive-chunking`: scenario-aware chunk sizing (enabled by default)
+- `--mode`: `compare` (vanilla + tuned) or `vanilla_only`
+- `--exp-id`: output experiment folder under `src/benchmark/artifacts/`
+
+Tuning/HPO arguments:
+
+- `--hpo-backend`: `optuna` (default) or `bayes_opt`  
+  (Optuna runs are now quiet; per‑trial “Trial … finished” messages are suppressed)
+- `--init-points`: warm/random startup budget
+- `--n-iter`: optimization iterations
+- `--eval-repeats`: repeats per trial for robustness
+- `--grid-warmstart-points`: lightweight grid points before main HPO
+- `--grid-focus-params`: number of priority params for grid warm-start
+- The pipeline runs tuning in `per_scenario` mode only (global tuning is disabled in `run_pipeline`)
+
+Penalty and confidence arguments:
+
+- `--disable-auto-penalties`: disable per-scenario auto scaling
+- `--penalty-calibration-runs`: baseline runs used to scale penalties
+- `--collision-penalty`, `--non-collision-free-penalty`, `--collision-free-weight`, `--no-feasible-penalty`
+- `--confidence-level`: confidence level used in loss curve plotting (ex: `0.95`)
+
+Loss and diagnostic logs:
+
+- `--log-loss-curves` / `--no-log-loss-curves` (tuning only, disabled by default in `run_pipeline`)
+- `--log-test-loss-curves` / `--no-log-test-loss-curves` (benchmark/test only, enabled by default)
+- `--log-pso-curves`
+- `--plot-loss-curves` / `--no-plot-loss-curves`
+
+Baseline (Basic) behavior in compare mode:
+
+- `--vanilla-params-summary` defaults to `src/benchmark/artifacts/basic/tuning/tuning_summary.json`
+- If this file is missing, the pipeline prints a warning and falls back to default vanilla config
+
+### Where are benchmark test logs?
+
+For each pipeline run (`--exp-id <ID>`), benchmark logs are stored in:
+
+- `src/benchmark/artifacts/<ID>/benchmark/benchmark_run_log.jsonl` (chunk-level execution logs)
+- `src/benchmark/artifacts/<ID>/benchmark/benchmark_summary.json` (aggregated metrics + metadata)
+- `src/benchmark/artifacts/<ID>/benchmark/benchmark_runs.parquet` (per-run raw metrics)
+
+Tuning logs (if enabled) are stored in:
+
+- `src/benchmark/artifacts/<ID>/tuning/tuning_loss_curves.parquet`
+- `src/benchmark/artifacts/<ID>/tuning/tuning_pso_curves.parquet`
+
+Benchmark test-loss logs (if enabled) are stored in:
+
+- `src/benchmark/artifacts/<ID>/benchmark/benchmark_test_loss_curves.parquet`
+
+## Project layout
+
+- `main.py`: main CLI entry point
+- `src/environment.py`: environment and rendering
+- `src/PSO/`: PSO implementation
+- `src/RRT/`: RRT implementation
+- `src/benchmark/core/`: shared benchmark primitives (`common.py`, `algo_profiles.py`)
+- `src/benchmark/jobs/`: executable benchmark jobs (`run_pipeline`, `tune_algo_bayes`, `benchmark_algo_vs_basic`)
+- `src/benchmark/viz/`: reports and plotting (`performance`, `plot_all_algos`, `plot_tuning_curves`)
+- `src/benchmark/archive/`: legacy/ad-hoc benchmark scripts kept for reference
+- `src/benchmark/`: compatibility wrappers for historical imports / `python -m src.benchmark.<module>`
+- `scenarios/`: input maps
+
+## Notes
+
+- If `python` points to another interpreter, use your environment-specific launcher (`uv run`, activated `conda`, or activated `.venv`).
+- Keep dependencies synchronized between `requirements.txt`, `environment.yml`, and `pyproject.toml` when updating packages.
