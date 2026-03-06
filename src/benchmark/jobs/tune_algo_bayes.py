@@ -9,6 +9,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import asdict
 from itertools import islice
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
@@ -81,13 +82,13 @@ def _tqdm_joblib(tqdm_object: Any):
         tqdm_object.close()
 
 
-def _resolve_n_jobs(requested_n_jobs: int, num_tasks: int) -> int:
+def _resolve_n_jobs(requested_n_jobs: int) -> int:
     if requested_n_jobs == 1:
         return 1
     cpu = max(1, int(os.cpu_count() or 1))
     if requested_n_jobs <= 0:
         requested_n_jobs = max(1, cpu - 1)
-    return max(1, min(int(requested_n_jobs), cpu, max(1, num_tasks)))
+    return max(1, min(int(requested_n_jobs), cpu))
 
 
 def _load_search_space(algo: str, json_path: str | None) -> dict[str, tuple[float, float]]:
@@ -309,6 +310,7 @@ def _maximize_with_backend(
     grid_focus_params: int,
     hpo_sampler: str = "tpe",
     enable_pruning: bool = False,
+    n_jobs: int = 1,
 ) -> tuple[dict[str, float], float, int, int, dict[str, float] | None]:
     if backend == "bayes_opt":
         optimizer = BayesianOptimization(
@@ -381,7 +383,7 @@ def _maximize_with_backend(
             return float(objective(_trial=trial, **params))
 
         total_trials = max(1, int(init_points) + int(n_iter))
-        study.optimize(_optuna_objective, n_trials=total_trials, show_progress_bar=False)
+        study.optimize(_optuna_objective, n_trials=total_trials, show_progress_bar=False, n_jobs=n_jobs)
 
         best_raw = {str(k): float(v) for k, v in study.best_params.items()}
         best_target = float(study.best_value)
@@ -579,6 +581,7 @@ def _optimize_for_scenario(
     hpo_backend: str,
     hpo_sampler: str = "tpe",
     enable_pruning: bool = False,
+    trial_jobs: int = 1,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     base_cfg = _load_base_config(scenario_id)
     # Use a generous fixed iteration budget; actual number_of_iterations is
@@ -588,10 +591,12 @@ def _optimize_for_scenario(
     pso_rows: list[dict[str, Any]] = []
     trial_counter = {"value": 0}
     best_target_so_far = {"value": -np.inf}
+    _lock = threading.Lock()
 
     def objective(_trial=None, **raw_params: float) -> float:
-        trial_idx = trial_counter["value"]
-        trial_counter["value"] += 1
+        with _lock:
+            trial_idx = trial_counter["value"]
+            trial_counter["value"] += 1
 
         tuned_cfg = cast_hyperparameters(raw_params, base_cfg)
         tuned_cfg = apply_algo_flags(tuned_cfg, algo)
@@ -655,7 +660,8 @@ def _optimize_for_scenario(
             collision_free_weight=float(penalty_cfg["collision_free_weight"]),
             no_feasible_penalty=float(penalty_cfg["no_feasible_penalty"]),
         )
-        best_target_so_far["value"] = max(best_target_so_far["value"], float(aggregate_target))
+        with _lock:
+            best_target_so_far["value"] = max(best_target_so_far["value"], float(aggregate_target))
 
         return float(aggregate_target)
 
@@ -670,6 +676,7 @@ def _optimize_for_scenario(
         grid_focus_params=int(grid_focus_params),
         hpo_sampler=str(hpo_sampler),
         enable_pruning=bool(enable_pruning),
+        n_jobs=int(trial_jobs),
     )
 
     best_cfg = apply_algo_flags(cast_hyperparameters(best_raw, base_cfg), algo)
@@ -707,6 +714,7 @@ def _optimize_global(
     hpo_backend: str,
     hpo_sampler: str = "tpe",
     enable_pruning: bool = False,
+    trial_jobs: int = 1,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     base_cfg_by_scenario = {sid: _load_base_config(sid) for sid in scenarios}
     # Override number_of_iterations with fixed tuning budget per scenario.
@@ -717,10 +725,12 @@ def _optimize_global(
     pso_rows: list[dict[str, Any]] = []
     trial_counter = {"value": 0}
     best_target_so_far = {"value": -np.inf}
+    _lock = threading.Lock()
 
     def objective(_trial=None, **raw_params: float) -> float:
-        trial_idx = trial_counter["value"]
-        trial_counter["value"] += 1
+        with _lock:
+            trial_idx = trial_counter["value"]
+            trial_counter["value"] += 1
 
         costs: list[float] = []
         collision_free_flags: list[bool] = []
@@ -797,7 +807,8 @@ def _optimize_global(
             collision_free_weight=penalty_mean["collision_free_weight"],
             no_feasible_penalty=penalty_mean["no_feasible_penalty"],
         )
-        best_target_so_far["value"] = max(best_target_so_far["value"], float(aggregate_target))
+        with _lock:
+            best_target_so_far["value"] = max(best_target_so_far["value"], float(aggregate_target))
         return float(aggregate_target)
 
     best_raw, best_target, total_trials, warm_count, param_importances = _maximize_with_backend(
@@ -811,6 +822,7 @@ def _optimize_global(
         grid_focus_params=int(grid_focus_params),
         hpo_sampler=str(hpo_sampler),
         enable_pruning=bool(enable_pruning),
+        n_jobs=int(trial_jobs),
     )
 
     summary = {
@@ -897,10 +909,23 @@ def main(argv: list[str] | None = None) -> None:
     scenarios = sorted(set(int(s) for s in args.scenarios))
     search_space = _load_search_space(args.algo, args.search_space_json)
 
-    n_jobs = _resolve_n_jobs(int(args.n_jobs), num_tasks=len(scenarios))
-    force_single_thread_fitness = n_jobs != 1
+    n_jobs = _resolve_n_jobs(int(args.n_jobs))
+    scenario_jobs = min(n_jobs, max(1, len(scenarios)))
+    trial_jobs = max(1, n_jobs // scenario_jobs)
 
-    if n_jobs != 1 and (Parallel is None or delayed is None):
+    # CMA-ES is a sequential sampler; Optuna falls back to random sampling when
+    # study.optimize(n_jobs>1) is used with it, silently breaking the algorithm.
+    if args.hpo_sampler == "cmaes" and trial_jobs > 1:
+        _LOG.warning(
+            "CMA-ES sampler is sequential and incompatible with trial-level parallelism. "
+            "Reducing trial_jobs from %d to 1 (scenario_jobs=%d is kept).",
+            trial_jobs, scenario_jobs,
+        )
+        trial_jobs = 1
+
+    force_single_thread_fitness = (scenario_jobs != 1 or trial_jobs != 1)
+
+    if scenario_jobs != 1 and (Parallel is None or delayed is None):
         raise ImportError("joblib is required for n_jobs != 1. Install with `uv pip install joblib`.")
 
     penalty_by_scenario: dict[int, dict[str, float]] = {}
@@ -956,7 +981,7 @@ def main(argv: list[str] | None = None) -> None:
     global_summary: dict[str, Any] | None = None
 
     if not args.skip_per_scenario:
-        if n_jobs == 1:
+        if scenario_jobs == 1:
             for scenario_id in tqdm(scenarios, desc="Tuning per scenario"):
                 pso_curve_rows, summary = _optimize_for_scenario(
                     scenario_id=scenario_id,
@@ -974,14 +999,18 @@ def main(argv: list[str] | None = None) -> None:
                     hpo_backend=str(args.hpo_backend),
                     hpo_sampler=str(args.hpo_sampler),
                     enable_pruning=bool(args.enable_pruning),
+                    trial_jobs=int(trial_jobs),
                 )
                 pso_rows.extend(pso_curve_rows)
                 per_scenario_summaries.append(summary)
         else:
-            _LOG.info("Running per-scenario tuning in parallel with n_jobs=%d", n_jobs)
+            _LOG.info(
+                "Running per-scenario tuning in parallel: %d scenario workers × %d trial workers = %d total",
+                scenario_jobs, trial_jobs, scenario_jobs * trial_jobs,
+            )
             with tqdm(total=len(scenarios), desc="Tuning per scenario (parallel)") as pbar:
                 with _tqdm_joblib(pbar):
-                    results = Parallel(n_jobs=n_jobs, backend="loky", verbose=0)(
+                    results = Parallel(n_jobs=scenario_jobs, backend="loky", verbose=0)(
                         delayed(_optimize_for_scenario)(
                             scenario_id=scenario_id,
                             algo=args.algo,
@@ -998,6 +1027,7 @@ def main(argv: list[str] | None = None) -> None:
                             hpo_backend=str(args.hpo_backend),
                             hpo_sampler=str(args.hpo_sampler),
                             enable_pruning=bool(args.enable_pruning),
+                            trial_jobs=int(trial_jobs),
                         )
                         for scenario_id in scenarios
                     )
@@ -1023,6 +1053,7 @@ def main(argv: list[str] | None = None) -> None:
                 hpo_backend=str(args.hpo_backend),
                 hpo_sampler=str(args.hpo_sampler),
                 enable_pruning=bool(args.enable_pruning),
+                trial_jobs=int(trial_jobs),
             )
             pso_rows.extend(pso_curve_rows)
             global_summary = summary
@@ -1048,6 +1079,8 @@ def main(argv: list[str] | None = None) -> None:
                 "global": global_summary,
                 "per_scenario": per_scenario_summaries,
                 "n_jobs": int(n_jobs),
+                "scenario_jobs": int(scenario_jobs),
+                "trial_jobs": int(trial_jobs),
                 "force_single_thread_fitness": bool(force_single_thread_fitness),
                 "auto_penalties": [
                     {
