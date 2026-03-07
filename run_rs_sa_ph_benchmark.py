@@ -8,6 +8,11 @@ import sys
 
 CONFIGS = [
     {"algo": "RS",  "exp_id": "RS"},
+    {"algo": "RS_SA_PH",     "exp_id": "RS_SA_PH"},
+    {"algo": "RS_SA_noCC",   "exp_id": "SA_noCC"},
+    {"algo": "RS_SA_noCC_DL","exp_id": "SA_noCC_DL"},
+    {"algo": "RS_SA_CC_DL",  "exp_id": "SA_CC_DL"},
+    {"algo": "RS_SA_CC",     "exp_id": "SA_CC"},
 ]
 
 BASE_ARGS = [
