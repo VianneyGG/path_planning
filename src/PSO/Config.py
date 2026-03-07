@@ -67,7 +67,7 @@ class PSOConfig:
         self.reset_number = max(1, int(self.reset_number))
         if self.acceptance_probability_decay is None:
             interval = max(1, int(self.number_of_iterations) // int(self.reset_number))
-            self.acceptance_probability_decay = (0.01) ** (1 / interval)
+            self.acceptance_probability_decay = (self.pre_heat_target_acceptance_rate - 0.05 ) / interval
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any] | None) -> "PSOConfig":

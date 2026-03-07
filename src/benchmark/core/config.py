@@ -32,7 +32,7 @@ class PipelineDefaults:
     collision_free_weight: float = 500.0
     no_feasible_penalty: float = 150.0
     time_weight: float = 5.0
-    penalty_calibration_runs: int = 2
+    penalty_calibration_runs: int = 10
 
     # ── parallelism ────────────────────────────────────────────────────────
     n_jobs: int = 1

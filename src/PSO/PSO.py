@@ -296,7 +296,7 @@ class PSO:
                     swarm.global_best_position_fitness - swarm.particules[0].fitness
                 )
 
-                acceptance_probability *= float(self.config.acceptance_probability_decay)
+                acceptance_probability -= float(self.config.acceptance_probability_decay)
 
                 temperature = max(
 
