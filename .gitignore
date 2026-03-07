@@ -188,12 +188,9 @@ cython_debug/
 .DS_Store
 Thumbs.db
 
-# Generated benchmark outputs
-src/benchmark/artifacts/**
-!src/benchmark/artifacts/.gitkeep
 
 # Project-generated experiment outputs
-artifacts/**
+src/benchmark/artifacts/**
 
 # Historical benchmark archives can be very large
 src/benchmark/archive/**
