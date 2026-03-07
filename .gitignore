@@ -188,6 +188,7 @@ cython_debug/
 .DS_Store
 Thumbs.db
 
+<<<<<<< HEAD
 
 # Project-generated experiment outputs
 src/benchmark/artifacts/**
@@ -200,6 +201,8 @@ src/benchmark/archive/**
 data/**
 !data/README.md
 notebooks/.ipynb_checkpoints/
+=======
+>>>>>>> fb86538 (first tests)
 
-# Derived docs/exports
+Derived docs/exports
 flowchart TD.html
