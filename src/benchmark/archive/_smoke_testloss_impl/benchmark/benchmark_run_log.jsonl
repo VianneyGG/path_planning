@@ -1,2 +1,0 @@
-{"scenario": 0, "algo": "vanilla", "run_start": 0, "run_end": 2, "num_runs": 2, "elapsed_sec": 0.1438246999969124, "worker_pid": 11452}
-{"scenario": 0, "algo": "RS_SA_PH", "run_start": 0, "run_end": 2, "num_runs": 2, "elapsed_sec": 0.8993536999987555, "worker_pid": 11452}

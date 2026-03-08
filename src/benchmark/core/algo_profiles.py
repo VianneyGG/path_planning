@@ -59,11 +59,11 @@ ALGO_FLAGS: dict[str, dict[str, bool]] = {
 ALGO_LABELS: dict[str, str] = {
     "vanilla": "Basic",
     "RS": "RS",
-    "RS_SA_noCC": "RS+SAnoCC",
-    "RS_SA_noCC_DL": "RS+SAnoCC+DL",
-    "RS_SA_CC": "RS+SA+CC",
-    "RS_SA_PH": "RS+SA+PH",
-    "RS_SA_CC_DL": "RS+SA+CC+DL",
+    "RS_SA_noCC": "SAnoCC",
+    "RS_SA_noCC_DL": "SAnoCC+DL",
+    "RS_SA_CC": "SA+CC",
+    "RS_SA_PH": "SA+PH",
+    "RS_SA_CC_DL": "SA+CC+DL",
 }
 
 # Ordered list of algorithm *keys* used to generate the blue->green color gradient for plots.
@@ -90,13 +90,14 @@ DEFAULT_SEARCH_SPACE: dict[str, dict[str, tuple[float, float]]] = {
         "inertia_weight": (0.4, 0.9),
         "best_position_acceleration": (1.0, 2.5),
         "global_best_position_acceleration": (1.0, 2.5),
-        "reset_number": (1.0, 4.0),
+        "reset_number": (1.0, 5.0),
     },
     "RS_SA_noCC": {
         "number_of_particules": (10.0, 150.0),
         "inertia_weight": (0.4, 0.9),
         "best_position_acceleration": (1.0, 2.5),
         "global_best_position_acceleration": (1.0, 2.5),
+        "reset_number": (1.0, 10.0),
         "initial_temperature": (2, 60.0),
     },
     "RS_SA_noCC_DL": {
@@ -104,6 +105,7 @@ DEFAULT_SEARCH_SPACE: dict[str, dict[str, tuple[float, float]]] = {
         "inertia_weight": (0.4, 0.9),
         "best_position_acceleration": (1.0, 2.5),
         "global_best_position_acceleration": (1.0, 2.5),
+        "reset_number": (1.0, 10.0),
         "initial_temperature": (2, 60.0),
         "max_number_of_iterations_without_improvement": (10.0, 50.0),
     },
@@ -112,6 +114,7 @@ DEFAULT_SEARCH_SPACE: dict[str, dict[str, tuple[float, float]]] = {
         "inertia_weight": (0.4, 0.9),
         "best_position_acceleration": (1.0, 2.5),
         "global_best_position_acceleration": (1.0, 2.5),
+        "reset_number": (1.0, 10.0),
         "initial_temperature": (2, 60.0),
         "acceptance_probability_decay": (0.985, 0.9999),
         "pre_heat_target_acceptance_rate": (0.8, 0.99),
@@ -122,6 +125,7 @@ DEFAULT_SEARCH_SPACE: dict[str, dict[str, tuple[float, float]]] = {
         "inertia_weight": (0.3, 0.9),
         "best_position_acceleration": (1.0, 2.5),
         "global_best_position_acceleration": (1.0, 2.5),
+        "reset_number": (1.0, 10.0),
         "temperature_decay": (0.98, 0.999),
         "pre_heat_target_acceptance_rate": (0.8, 0.99),
     },
@@ -130,6 +134,7 @@ DEFAULT_SEARCH_SPACE: dict[str, dict[str, tuple[float, float]]] = {
         "inertia_weight": (0.4, 0.9),
         "best_position_acceleration": (1.0, 2.5),
         "global_best_position_acceleration": (1.0, 2.5),
+        "reset_number": (1.0, 10.0),
         "initial_temperature": (2, 60.0),
         "acceptance_probability_decay": (0.985, 0.9999),
         "max_number_of_iterations_without_improvement": (10.0, 50.0),
@@ -178,7 +183,7 @@ INT_HYPERPARAMETERS = {
 }
 
 # Default reset number used by PSO and the benchmarking pipeline when not specified.
-DEFAULT_RESET_NUMBER: int = 1
+DEFAULT_RESET_NUMBER: int = 2
 
 
 def get_algo_flags(algo: str) -> dict[str, bool]:

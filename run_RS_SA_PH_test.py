@@ -3,11 +3,7 @@ import sys
 
 
 configs = [
-    {"algo": "RS_SA_PH",     "exp_id": "RS_SA_PH"},
-    {"algo": "SA_noCC",   "exp_id": "SA_noCC"},
-    {"algo": "SA_noCC_DL","exp_id": "SA_noCC_DL"},
-    {"algo": "SA_CC_DL",  "exp_id": "SA_CC_DL"},
-    {"algo": "SA_CC",     "exp_id": "SA_CC"},
+    {"algo": "RS",  "exp_id": "RS"},
 ]
 
 base_args = [
