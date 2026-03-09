@@ -64,6 +64,52 @@ class Environment:
             self._obs_maxy = np.array([], dtype=float)
             self._all_corners = np.empty((0, 2), dtype=float)
 
+    def get_corner_waypoint_candidates(self, delta: float = 10.0) -> np.ndarray:
+        """Return candidate waypoints offset diagonally outward from each obstacle corner.
+
+        Each of the four corners of each obstacle is nudged ``delta`` units outward
+        along both axes (away from the obstacle interior).  Candidates that fall
+        outside the map bounds or strictly inside any obstacle are filtered out.
+
+        Returns:
+            np.ndarray of shape (M, 2).  May be empty when there are no obstacles
+            or all candidates are out-of-bounds / occluded.
+        """
+        if not self.obstacles:
+            return np.empty((0, 2), dtype=float)
+
+        # Build all raw candidates: 4 per obstacle
+        raw = []
+        for obs in self.obstacles:
+            x0, y0 = obs.x, obs.y
+            x1, y1 = obs.x + obs.lx, obs.y + obs.ly
+            raw.extend([
+                (x0 - delta, y0 - delta),  # bottom-left outward
+                (x1 + delta, y0 - delta),  # bottom-right outward
+                (x1 + delta, y1 + delta),  # top-right outward
+                (x0 - delta, y1 + delta),  # top-left outward
+            ])
+        pts = np.array(raw, dtype=float)  # shape (4*O, 2)
+
+        # Filter: within map bounds
+        in_bounds = (
+            (pts[:, 0] >= 0.0) & (pts[:, 0] <= self.xmax) &
+            (pts[:, 1] >= 0.0) & (pts[:, 1] <= self.ymax)
+        )
+        pts = pts[in_bounds]
+        if len(pts) == 0 or len(self._obs_minx) == 0:
+            return pts
+
+        # Filter: not strictly inside any obstacle
+        # Broadcasting: px shape (M,1) vs _obs_minx shape (O,)
+        px = pts[:, 0:1]
+        py = pts[:, 1:2]
+        inside_any = (
+            (px > self._obs_minx) & (px < self._obs_maxx) &
+            (py > self._obs_miny) & (py < self._obs_maxy)
+        ).any(axis=1)
+        return pts[~inside_any]
+
     @staticmethod
     def _segment_intersects_rectangles(
         p1: np.ndarray,

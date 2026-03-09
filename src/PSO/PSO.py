@@ -92,6 +92,7 @@ class PSO:
         *,
         progress: bool,
         verbose: bool,
+        max_iterations: int | None = None,
         ) -> tuple[float, float]:
 
         temperature = float(self.config.initial_temperature)
@@ -106,7 +107,8 @@ class PSO:
             print("Pre-heating phase...")
 
 
-        iterator = range(int(self.config.pre_heat_max_iterations))
+        _ph_max_iters = max_iterations if max_iterations is not None else int(self.config.pre_heat_max_iterations)
+        iterator = range(_ph_max_iters)
 
         if progress and verbose:
 
@@ -174,7 +176,7 @@ class PSO:
 
                 break
 
-            if verbose and pre_heat_iteration == int(self.config.pre_heat_max_iterations) - 1:
+            if verbose and pre_heat_iteration == _ph_max_iters - 1:
                 print(
 
                     f"Pre-heating ended after max iterations with acceptance rate "
@@ -193,6 +195,8 @@ class PSO:
         capture_history: bool,
         animation_every: int,
         iteration_callback: Any = None,
+        swarm_snapshot_callback: Any = None,
+        snapshot_every: int = 1,
         ) -> tuple[Path, list[np.ndarray] | None]:
 
         swarm = self._initialize_swarm()
@@ -300,7 +304,7 @@ class PSO:
 
                 temperature = max(
 
-                    temperature * float(self.config.acceptance_probability_decay),
+                    temperature * float(self.config.cc_temperature_decay),
 
                     -1 * positive_fitness_variations / np.log(max(acceptance_probability, 1e-9)), # make sure to avoid log(0) and division by zero
                 )
@@ -347,6 +351,9 @@ class PSO:
                     pass
 
 
+            if swarm_snapshot_callback is not None and iteration % snapshot_every == 0:
+                swarm_snapshot_callback(swarm, iteration)
+
             if path_history is not None and iteration % animation_every == 0:
 
                 path_history.append(swarm.get_best_path().get_array_coords().copy())
@@ -361,19 +368,16 @@ class PSO:
 
             ):
 
-                temperature = (
-
-                    pre_heat_initial_temperature
-
-                    if bool(self.config.pre_heat)
-
-                    else float(self.config.initial_temperature)
-                )
-
-                acceptance_probability = (
-
-                    pre_heat_initial_probability if bool(self.config.pre_heat) else 0.1
-                )
+                if bool(self.config.pre_heat):
+                    _mini_iters = max(1, int(self.config.pre_heat_max_iterations) // 2)
+                    temperature, acceptance_probability = self._pre_heat(
+                        swarm, progress=False, verbose=verbose, max_iterations=_mini_iters,
+                    )
+                    pre_heat_initial_temperature = temperature
+                    pre_heat_initial_probability = acceptance_probability
+                else:
+                    temperature = float(self.config.initial_temperature)
+                    acceptance_probability = 0.1
 
                 try:
 
@@ -446,6 +450,68 @@ class PSO:
         )
 
         return best.get_array_coords()
+
+    def run_with_snapshots(
+        self,
+        *,
+        every_n: int = 1,
+        progress: bool = True,
+        verbose: bool = False,
+    ) -> tuple[np.ndarray, list[dict], bool]:
+        """Run PSO and collect per-iteration swarm snapshots for GIF rendering.
+
+        Returns
+        -------
+        final_coords : np.ndarray
+            Best path coordinates at end of run.
+        snapshots : list[dict]
+            One dict per captured iteration with keys:
+            ``iteration``, ``particle_positions``, ``best_path_coords``, ``best_fitness``.
+        is_cf : bool
+            True when the final solution has zero collisions.
+        """
+        snapshots: list[dict] = []
+
+        def _capture(swarm_obj: Any, iter_num: int) -> None:
+            snapshots.append({
+                "iteration": iter_num,
+                "particle_positions": [p.position.copy() for p in swarm_obj.particules],
+                "best_path_coords": swarm_obj.get_best_path().get_array_coords().copy(),
+                "best_fitness": float(swarm_obj._all_time_best_fitness),
+            })
+
+        best, _ = self._run_core(
+            progress=progress,
+            verbose=verbose,
+            capture_history=False,
+            animation_every=1,
+            swarm_snapshot_callback=_capture,
+            snapshot_every=max(1, int(every_n)),
+        )
+
+        is_cf = bool(
+            best.collisions_and_corners(
+                self.environment,
+                self.hyperparameters["corner_radius"],
+                check_corners=False,
+            )[0] == 0
+        )
+
+        # Ensure at least one snapshot exists (edge case: zero iterations)
+        if not snapshots:
+            _capture_swarm_dummy = type("_D", (), {
+                "particules": [],
+                "get_best_path": lambda self: best,
+                "_all_time_best_fitness": self.path_fitness(best),
+            })()
+            snapshots.append({
+                "iteration": 0,
+                "particle_positions": [],
+                "best_path_coords": best.get_array_coords().copy(),
+                "best_fitness": self.path_fitness(best),
+            })
+
+        return best.get_array_coords(), snapshots, is_cf
 
     def plan_path(
         self,

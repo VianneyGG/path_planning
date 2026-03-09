@@ -59,8 +59,8 @@ ALGO_FLAGS: dict[str, dict[str, bool]] = {
 ALGO_LABELS: dict[str, str] = {
     "vanilla": "Basic",
     "RS": "RS",
-    "RS_SA_noCC": "SAnoCC",
-    "RS_SA_noCC_DL": "SAnoCC+DL",
+    "RS_SA_noCC": "SA",
+    "RS_SA_noCC_DL": "SA+DL",
     "RS_SA_CC": "SA+CC",
     "RS_SA_PH": "SA+PH",
     "RS_SA_CC_DL": "SA+CC+DL",
@@ -116,18 +116,19 @@ DEFAULT_SEARCH_SPACE: dict[str, dict[str, tuple[float, float]]] = {
         "global_best_position_acceleration": (1.0, 2.5),
         "reset_number": (1.0, 10.0),
         "initial_temperature": (2, 60.0),
-        "acceptance_probability_decay": (0.985, 0.9999),
+        "cc_temperature_decay": (0.985, 0.9999),
         "pre_heat_target_acceptance_rate": (0.8, 0.99),
     },
     "RS_SA_PH": {
         "number_of_particules": (10.0, 150.0),
-
         "inertia_weight": (0.3, 0.9),
         "best_position_acceleration": (1.0, 2.5),
         "global_best_position_acceleration": (1.0, 2.5),
         "reset_number": (1.0, 10.0),
+        "initial_temperature": (1.0, 60.0),
         "temperature_decay": (0.98, 0.999),
-        "pre_heat_target_acceptance_rate": (0.8, 0.99),
+        "pre_heat_target_acceptance_rate": (0.6, 0.99),
+        "pre_heat_max_iterations": (50.0, 300.0),
     },
     "RS_SA_CC_DL": {
         "number_of_particules": (10.0, 150.0),
@@ -136,7 +137,7 @@ DEFAULT_SEARCH_SPACE: dict[str, dict[str, tuple[float, float]]] = {
         "global_best_position_acceleration": (1.0, 2.5),
         "reset_number": (1.0, 10.0),
         "initial_temperature": (2, 60.0),
-        "acceptance_probability_decay": (0.985, 0.9999),
+        "cc_temperature_decay": (0.985, 0.9999),
         "max_number_of_iterations_without_improvement": (10.0, 50.0),
         "pre_heat_target_acceptance_rate": (0.8, 0.99),
     },
@@ -179,6 +180,7 @@ INT_HYPERPARAMETERS = {
     "number_of_iterations",
     "number_of_waypoints",
     "reset_number",
+    "pre_heat_max_iterations",
     "max_number_of_iterations_without_improvement",
 }
 

@@ -29,6 +29,10 @@ class PSOConfig:
     pre_heat_target_acceptance_rate: float = 0.95
     controlled_cooling: bool = True
     acceptance_probability_decay: float | None = None
+    # Geometric temperature multiplier used by controlled cooling.
+    # Decoupled from acceptance_probability_decay so the linear probability schedule
+    # and the geometric temperature schedule can be tuned independently.
+    cc_temperature_decay: float = 0.99
     # Dimensional learning
     dimensional_learning: bool = False
     parallel_fitness_workers: int = 1
@@ -60,6 +64,13 @@ class PSOConfig:
     # instead of a per-particle loop / thread pool.
     # Requires dimensional_learning=False and prune_straight_angles=False.
     vectorized_fitness: bool = False
+    # Corner-biased waypoint initialisation: intermediate waypoints are sampled
+    # as a mix of obstacle-corner neighbours and purely random points.
+    # corner_delta  — diagonal offset (in map units) from each obstacle corner
+    # corner_init_ratio — fraction of waypoints taken from corner candidates
+    #                     (0.0 = all random, 1.0 = all from corners)
+    corner_delta: float = 10.0
+    corner_init_ratio: float = 0.5
 
     def __post_init__(self) -> None:
         self.parallel_fitness_workers = max(1, int(self.parallel_fitness_workers))

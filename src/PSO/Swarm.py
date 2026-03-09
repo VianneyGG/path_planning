@@ -55,9 +55,15 @@ class Swarm:
         # print(f"Initialized swarm with {num_particules} particules.") # printing makes program slower, impacting benchmark purity.
         return Swarm(particules, best_particule.path)
     
-    def reset_waypoints(self, env: Environment, number_of_waypoints: int, hyperparameters: dict)-> None: 
+    def reset_waypoints(self, env: Environment, number_of_waypoints: int, hyperparameters: dict)-> None:
+        corner_delta = hyperparameters.get('corner_delta', 10.0)
+        corner_init_ratio = hyperparameters.get('corner_init_ratio', 0.5)
         for particule in self.particules:
-            new_path = Path.initialize_path(env, number_of_waypoints)
+            new_path = Path.initialize_path(
+                env, number_of_waypoints,
+                corner_delta=corner_delta,
+                corner_init_ratio=corner_init_ratio,
+            )
             particule.path = new_path
             particule.position = new_path.get_array_coords()
             particule.best_position = particule.position.copy()

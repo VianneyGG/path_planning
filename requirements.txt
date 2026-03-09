@@ -9,3 +9,4 @@ bayesian-optimization
 joblib
 seaborn
 optuna
+pillow

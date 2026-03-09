@@ -17,7 +17,13 @@ class Particule:
         
     @staticmethod
     def initialize_particule(env : Environment, hyperparameters: dict, number_of_waypoints: int)-> 'Particule':
-        particule = Particule(Path.initialize_path(env, number_of_waypoints))
+        corner_delta = hyperparameters.get('corner_delta', 10.0)
+        corner_init_ratio = hyperparameters.get('corner_init_ratio', 0.5)
+        particule = Particule(Path.initialize_path(
+            env, number_of_waypoints,
+            corner_delta=corner_delta,
+            corner_init_ratio=corner_init_ratio,
+        ))
         particule.evaluate_fitness(env, None, hyperparameters)
         return particule
     

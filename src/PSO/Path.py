@@ -32,15 +32,53 @@ class Path:
                 wp.y = float(self._coords[i, 1])
         
     @staticmethod
-    def initialize_path(env: Environment, number_of_waypoints: int)-> 'Path':
+    def initialize_path(
+        env: Environment,
+        number_of_waypoints: int,
+        corner_delta: float = 10.0,
+        corner_init_ratio: float = 0.5,
+    ) -> 'Path':
         x, y = env.u1s
         waypoints = [Waypoint(x, y, is_fixed=True)]  # Start waypoint
-        for _ in range(number_of_waypoints):
-            waypoint = Waypoint.random_waypoint(x_range=(0,env.xmax), y_range=(0,env.ymax), is_fixed=False)
-            waypoints.append(waypoint)
+        intermediate = Path._sample_intermediate_waypoints(
+            env, number_of_waypoints, corner_delta, corner_init_ratio
+        )
+        for cx, cy in intermediate:
+            waypoints.append(Waypoint(float(cx), float(cy), is_fixed=False))
         x, y = env.u1d
         waypoints.append(Waypoint(x, y, is_fixed=True))  # Goal waypoint
         return Path(waypoints)
+
+    @staticmethod
+    def _sample_intermediate_waypoints(
+        env: Environment,
+        n: int,
+        corner_delta: float,
+        corner_init_ratio: float,
+    ) -> np.ndarray:
+        """Return n intermediate (x, y) positions as a mix of corner-biased and random."""
+        if n == 0:
+            return np.empty((0, 2), dtype=float)
+
+        candidates = env.get_corner_waypoint_candidates(corner_delta)
+        if len(candidates) == 0 or corner_init_ratio <= 0.0:
+            n_corners = 0
+        else:
+            n_corners = min(n, max(1, round(n * corner_init_ratio)))
+        n_random = n - n_corners
+
+        coords = []
+        if n_corners > 0:
+            idx = np.random.choice(len(candidates), size=n_corners, replace=True)
+            coords.append(candidates[idx])
+        if n_random > 0:
+            coords.append(np.column_stack([
+                np.random.uniform(0, env.xmax, n_random),
+                np.random.uniform(0, env.ymax, n_random),
+            ]))
+        result = np.vstack(coords)  # shape (n, 2)
+        np.random.shuffle(result)
+        return result
     
     def get_waypoints(self) -> list[Waypoint]:
         """Return waypoints with positions synced from the internal coords array."""
