@@ -204,5 +204,5 @@ data/**
 !data/README.md
 notebooks/.ipynb_checkpoints/
 
-# Derived docs/exports
+Derived docs/exports
 flowchart TD.html
