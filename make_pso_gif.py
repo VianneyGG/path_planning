@@ -1,4 +1,4 @@
-"""Generate a GIF of PSO evolution for a collision-free ending run.
+﻿"""Generate a GIF of PSO evolution for a collision-free ending run.
 
 Usage
 -----
@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
-import os
+from pathlib import Path
 import sys
 import time
 
@@ -27,8 +27,8 @@ import matplotlib.patches as mpatches
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 from src.environment import Environment
-from src.PSO.PSO import PSO
-from src.PSO.Config import PSOConfig
+from src.PSO.pso_solver import PSO
+from src.PSO.pso_config import PSOConfig
 from src.benchmark.core.algo_profiles import ALGO_FLAGS, ALGO_LABELS
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,8 @@ COLORS = {
     "text": "#d6deeb",
 }
 
-ARCHIVE_TUNING_PATH = "src/benchmark/archive/{algo}/tuning/tuning_summary.json"
+ROOT = Path(__file__).resolve().parent
+ARCHIVE_TUNING_PATH = ROOT / "src" / "benchmark" / "archive"
 
 
 # ---------------------------------------------------------------------------
@@ -58,10 +59,10 @@ ARCHIVE_TUNING_PATH = "src/benchmark/archive/{algo}/tuning/tuning_summary.json"
 
 def _load_tuned_params(algo: str, scenario: int) -> PSOConfig:
     """Try to load tuned params from archive; fall back to PSOConfig defaults."""
-    json_path = ARCHIVE_TUNING_PATH.format(algo=algo)
-    if os.path.isfile(json_path):
+    json_path = ARCHIVE_TUNING_PATH / algo / "tuning" / "tuning_summary.json"
+    if json_path.is_file():
         try:
-            with open(json_path, "r", encoding="utf-8") as fh:
+            with json_path.open("r", encoding="utf-8") as fh:
                 data = json.load(fh)
             for entry in data.get("per_scenario", []):
                 if entry.get("scenario") == scenario:
@@ -103,7 +104,7 @@ def _find_cf_run(
         if is_cf:
             cf_count += 1
             path_length = float(np.linalg.norm(np.diff(final_coords, axis=0), axis=1).sum())
-            print(f"[result] CF ✓  length={path_length:.1f}  time={cpu_time:.2f}s")
+            print(f"[result] CF OK  length={path_length:.1f}  time={cpu_time:.2f}s")
             if path_length < best_path_length:
                 best_path_length = path_length
                 best_snapshots = snapshots
@@ -179,7 +180,7 @@ def _print_run_summary(
                 v = params[k]
                 # Skip None decay when controlled_cooling is off
                 if v is None:
-                    v = "—"
+                    v = "-"
                 elif isinstance(v, float):
                     v = f"{v:.6g}"
                 else:
@@ -289,7 +290,7 @@ def _render_gif(
             txt.set_color(COLORS["text"])
 
         ax.set_title(
-            f"{ALGO_LABELS[algo]}  ·  Scenario {scenario}  ·  CF run",
+            f"{ALGO_LABELS[algo]}  -  Scenario {scenario}  -  CF run",
             color=COLORS["text"], fontsize=11, fontweight="bold",
         )
         fig.patch.set_facecolor(COLORS["fig_bg"])
@@ -301,7 +302,7 @@ def _render_gif(
     def _update_with_hold(frame_idx: int) -> None:
         _update(min(frame_idx, len(snapshots) - 1))
 
-    print(f"\n[gif] Rendering {len(snapshots)} run frames + {hold_frames} hold frames at {fps} fps…")
+    print(f"\n[gif] Rendering {len(snapshots)} run frames + {hold_frames} hold frames at {fps} fps...")
     ani = FuncAnimation(
         fig, _update_with_hold,
         frames=total_frames,
@@ -309,7 +310,7 @@ def _render_gif(
         repeat=False,
     )
 
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    Path(output_path).resolve().parent.mkdir(parents=True, exist_ok=True)
     try:
         ani.save(output_path, writer=PillowWriter(fps=fps))
     except Exception as exc:
@@ -318,7 +319,7 @@ def _render_gif(
         sys.exit(1)
 
     plt.close(fig)
-    print(f"[gif] Saved → {output_path}")
+    print(f"[gif] Saved -> {output_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -335,7 +336,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "-s", "--scenario",
         type=int, required=True,
         metavar="ID",
-        help="Scenario ID (0–4)",
+        help="Scenario ID (0-4)",
     )
     p.add_argument(
         "-a", "--algo",
@@ -382,7 +383,7 @@ def main() -> None:
 
     # Validate scenario
     if not 0 <= args.scenario <= 4:
-        print(f"[error] scenario must be 0–4, got {args.scenario}")
+        print(f"[error] scenario must be 0-4, got {args.scenario}")
         sys.exit(1)
 
     # Default output path
@@ -392,15 +393,15 @@ def main() -> None:
 
     print(f"[config] algo={args.algo}  scenario={args.scenario}  "
           f"max_runs={args.max_runs}  fps={args.fps}  every={args.every}")
-    print(f"[config] output → {output}")
+    print(f"[config] output -> {output}")
 
     # Load environment
-    scenario_file = f"scenarios/scenario{args.scenario}.txt"
-    if not os.path.isfile(scenario_file):
+    scenario_file = ROOT / "scenarios" / f"scenario{args.scenario}.txt"
+    if not scenario_file.is_file():
         print(f"[error] Scenario file not found: {scenario_file}")
         sys.exit(1)
     env = Environment()
-    env.from_file(scenario_file)
+    env.from_file(str(scenario_file))
     print(f"[env] Loaded scenario {args.scenario}: "
           f"{env.xmax}x{env.ymax}, {len(env.obstacles)} obstacles")
 
@@ -443,3 +444,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

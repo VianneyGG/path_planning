@@ -185,12 +185,24 @@ cython_debug/
 .history/
 *.code-workspace
 
-environment.yml
 .DS_Store
+Thumbs.db
 
 # Generated benchmark outputs
 src/benchmark/artifacts/**
 !src/benchmark/artifacts/.gitkeep
+
+# Project-generated experiment outputs
+artifacts/**
+
+# Historical benchmark archives can be very large
+src/benchmark/archive/**
+!src/benchmark/archive/README.md
+
+# Optional local data and notebooks outputs
+data/**
+!data/README.md
+notebooks/.ipynb_checkpoints/
 
 # Derived docs/exports
 flowchart TD.html

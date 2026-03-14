@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -22,8 +22,8 @@ except ImportError:
     delayed = None
 
 from src.environment import Environment
-from src.PSO.Config import PSOConfig
-from src.PSO.PSO import PSO
+from src.PSO.pso_config import PSOConfig
+from src.PSO.pso_solver import PSO
 from src.benchmark.core.algo_profiles import apply_algo_flags, DEFAULT_RESET_NUMBER
 from src.benchmark.core.common import scenario_path
 
@@ -133,13 +133,13 @@ def _run_one(
     """Run a single PSO execution.
 
     Always returns at least one row:
-    - CF run  → all iteration rows (with ``iteration >= 0``).
-    - non-CF run → single summary row with ``iteration = -1``.
+    - CF run  -> all iteration rows (with ``iteration >= 0``).
+    - non-CF run -> single summary row with ``iteration = -1``.
 
     Every row carries:
-    - ``is_collision_free``  – True if the run ultimately ended CF.
-    - ``elapsed_s``          – wall-clock seconds of the full run.
-    - ``path_length_m``      – final best-path length from ``pso.solution``.
+    - ``is_collision_free``  - True if the run ultimately ended CF.
+    - ``elapsed_s``          - wall-clock seconds of the full run.
+    - ``path_length_m``      - final best-path length from ``pso.solution``.
     These are run-level constants, repeated on every row so callers can
     ``drop_duplicates("run_id")`` to get per-run summaries for CF-proportion,
     CPU-time and path-length plots.
@@ -160,7 +160,7 @@ def _run_one(
                 "iteration":         int(payload.get("iteration", -1)),
                 "best_fitness":      float(payload.get("best_fitness", float("inf"))),
                 "is_collision_free": bool(payload.get("is_collision_free", False)),
-                # placeholders – filled in after pso.run() completes
+                # placeholders - filled in after pso.run() completes
                 "elapsed_s":         float("nan"),
                 "path_length_m":     float("nan"),
             }
@@ -409,3 +409,4 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
+

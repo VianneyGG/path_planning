@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -33,8 +33,8 @@ except ImportError:
     joblib_parallel = None
 
 from src.environment import Environment
-from src.PSO.Config import PSOConfig
-from src.PSO.PSO import PSO
+from src.PSO.pso_config import PSOConfig
+from src.PSO.pso_solver import PSO
 from src.benchmark.core.algo_profiles import (
     SCENARIO_ITERATION_BOUNDS,
     SCENARIO_TUNING_BUDGET,
@@ -444,11 +444,11 @@ def _find_stagnation_iter(
     # achieved CF at early iterations their median best_fitness is an
     # outlier floor; the cummin stays flat there until a representative
     # population of CF runs has accumulated. Detecting stagnation on that
-    # flat region is meaningless — it always fires immediately.
+    # flat region is meaningless - it always fires immediately.
     initial_value = float(curve.iloc[0])
     past_warmup = curve[curve < initial_value - threshold]
     if past_warmup.empty:
-        # The curve never improved meaningfully — cannot determine stagnation.
+        # The curve never improved meaningfully - cannot determine stagnation.
         return max_iters
     curve = curve.loc[past_warmup.index[0]:]
 
@@ -477,7 +477,7 @@ def _find_stagnation_iter(
 
     # Sanity-check: if stagnation fired fewer than 2*window iterations after
     # the warmup end the "active convergence" phase was too short (only one
-    # decline window then immediately flat — typical of step-function curves
+    # decline window then immediately flat - typical of step-function curves
     # produced by very few CF runs).  Treat as insufficient data.
     if pruned - int(curve.index[0]) < 2 * window:
         return max_iters
@@ -533,7 +533,7 @@ def _prune_iterations_in_summary(
         best_params["number_of_iterations"] = pruned
         modified = True
         _LOG.info(
-            "Scenario %d: number_of_iterations %d → %d (stagnation window=%d, threshold=%.4f)",
+            "Scenario %d: number_of_iterations %d -> %d (stagnation window=%d, threshold=%.4f)",
             scenario_id, budget, pruned, stagnation_window, stagnation_threshold,
         )
 
@@ -780,7 +780,7 @@ def _optimize_global(
                 repeat_targets.append(target)
 
                 # Trial pruning (HPO-A): use a running step counter across
-                # scenario × repeat pairs within this trial.
+                # scenario x repeat pairs within this trial.
                 _global_step = len(costs) - 1
                 if _trial is not None:
                     try:
@@ -898,7 +898,7 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
     # when optuna is chosen as the backend make sure its own logger stays quiet
-    # regardless of the global log level; this prevents the per‑trial "Trial…"
+    # regardless of the global log level; this prevents the per-trial "Trial..."
     # messages that users asked us to stop printing.
     if args.hpo_backend == "optuna" and optuna is not None:
         try:
@@ -1005,7 +1005,7 @@ def main(argv: list[str] | None = None) -> None:
                 per_scenario_summaries.append(summary)
         else:
             _LOG.info(
-                "Running per-scenario tuning in parallel: %d scenario workers × %d trial workers = %d total",
+                "Running per-scenario tuning in parallel: %d scenario workers x %d trial workers = %d total",
                 scenario_jobs, trial_jobs, scenario_jobs * trial_jobs,
             )
             with tqdm(total=len(scenarios), desc="Tuning per scenario (parallel)") as pbar:
@@ -1116,3 +1116,4 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -1,4 +1,4 @@
-"""Path planning demo — RRT or PSO.
+﻿"""Path planning demo - RRT or PSO.
 
 Examples:
   python main.py rrt
@@ -11,13 +11,22 @@ Examples:
 
 import argparse
 import sys
+from pathlib import Path
 import numpy as np
 
 from src.environment import Environment
-from src.RRT.RRT import RRT, _distance, multi_robot_planner, export_rrt_animation_html
+from src.RRT.rrt_planner import RRT, _distance, multi_robot_planner, export_rrt_animation_html
+
+
+ROOT = Path(__file__).resolve().parent
+
+
+def _scenario_path(scenario: int) -> Path:
+    """Return the absolute path for a scenario file."""
+    return ROOT / "scenarios" / f"scenario{scenario}.txt"
 
 # ---------------------------------------------------------------------------
-# PSO heuristic aliases → internal ALGO_FLAGS key
+# PSO heuristic aliases -> internal ALGO_FLAGS key
 # ---------------------------------------------------------------------------
 
 _HEURISTIC_ALIASES: dict[str, str] = {
@@ -51,9 +60,10 @@ def _resolve_heuristic(name: str) -> str:
 # Runners
 # ---------------------------------------------------------------------------
 
-def run_rrt(scenario: int = 0, show: bool = True, animation_path: str | None = None):
+def run_rrt(scenario: int = 0, show: bool = True, animation_path: str | None = None) -> None:
+    """Run single-robot RRT planning."""
     env = Environment()
-    env.from_file(f"scenarios/scenario{scenario}.txt")
+    env.from_file(str(_scenario_path(scenario)))
     rrt = RRT(env.u1s, env.u1d, env, delta_s=40.0, delta_r=120.0, n_iter=2000, p=0.2, smooth=True)
     path = rrt.run_algorithm()
     length = sum(_distance(path[i - 1], path[i]) for i in range(1, len(path)))
@@ -66,10 +76,10 @@ def run_rrt(scenario: int = 0, show: bool = True, animation_path: str | None = N
         env.render(path)
 
 
-def run_multi_robot(scenario: int = 0, show: bool = True, animation_path: str | None = None):
+def run_multi_robot(scenario: int = 0, show: bool = True, animation_path: str | None = None) -> None:
     """Prioritized planning: RRT for Robot 1, then RRT with Robot 1 as dynamic obstacle for Robot 2."""
     env = Environment()
-    env.from_file(f"scenarios/scenario{scenario}.txt")
+    env.from_file(str(_scenario_path(scenario)))
     path1, path2 = multi_robot_planner(env, progress_bar=True)
     len1 = sum(_distance(path1[i - 1], path1[i]) for i in range(1, len(path1)))
     len2 = sum(_distance(path2[i - 1], path2[i]) for i in range(1, len(path2)))
@@ -87,15 +97,16 @@ def run_pso(
     heuristic: str = "RS_SA_noCC",
     n_runs: int = 1,
     animation_path: str | None = None,
-):
-    from src.PSO.PSO import PSO
+) -> None:
+    """Run PSO planning and keep the best run."""
+    from src.PSO.pso_solver import PSO
     from src.benchmark.core.algo_profiles import get_algo_flags, ALGO_LABELS
 
     label = ALGO_LABELS.get(heuristic, heuristic)
-    print(f"PSO — heuristic: {label}, runs: {n_runs}, scenario: {scenario}, workers: 12")
+    print(f"PSO - heuristic: {label}, runs: {n_runs}, scenario: {scenario}, workers: 12")
 
     env = Environment()
-    env.from_file(f"scenarios/scenario{scenario}.txt")
+    env.from_file(str(_scenario_path(scenario)))
 
     config = get_algo_flags(heuristic)
     config["parallel_fitness_workers"] = 12
@@ -129,7 +140,7 @@ def run_pso(
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="main.py",
-        description="Path planning demo — RRT or PSO",
+        description="Path planning demo - RRT or PSO",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
@@ -198,3 +209,4 @@ if __name__ == "__main__":
         run_multi_robot(args.scenario, show=True, animation_path=args.animate)
     elif args.method == "pso":
         run_pso(args.scenario, args.heuristic, args.runs, animation_path=args.animate)
+

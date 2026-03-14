@@ -1,3 +1,5 @@
+"""Benchmark algo vs basic module."""
+
 from src.benchmark.jobs.benchmark_algo_vs_basic import main  # noqa: F401
 
 

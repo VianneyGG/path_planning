@@ -1,3 +1,5 @@
+"""Run pipeline module."""
+
 from src.benchmark.jobs.run_pipeline import main  # noqa: F401
 
 

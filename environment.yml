@@ -1,0 +1,19 @@
+name: path_planning
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - python=3.11
+  - matplotlib
+  - shapely
+  - pip
+  - tqdm
+  - plotly
+  - pandas
+  - pyarrow
+  - pip:
+      - pygame
+      - scipy
+      - bayesian-optimization
+      - seaborn

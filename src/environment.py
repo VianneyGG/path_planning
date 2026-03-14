@@ -1,3 +1,5 @@
+"""Environment module."""
+
 from shapely.geometry import Polygon
 import matplotlib.pyplot as plt
 import numpy as np
@@ -5,7 +7,10 @@ from typing import List, Optional, Sequence, Tuple, Union
 
 
 class Obstacle:
-    def __init__(self, x, y, lx, ly):
+    """Axis-aligned rectangular obstacle."""
+
+    def __init__(self, x: float, y: float, lx: float, ly: float) -> None:
+        """Create an obstacle from origin and rectangle size."""
         self.x = x
         self.y = y
         self.lx = lx
@@ -33,7 +38,10 @@ class Obstacle:
 
 
 class Environment:
-    def __init__(self):
+    """2D planning environment with obstacle and scenario utilities."""
+
+    def __init__(self) -> None:
+        """Initialize an empty environment."""
         self.xmax = None
         self.ymax = None
         self.u1s = None
@@ -50,6 +58,7 @@ class Environment:
         self._all_corners = np.empty((0, 2), dtype=float)
 
     def _rebuild_obstacle_index(self) -> None:
+        """Rebuild vectorized obstacle arrays used for fast collision checks."""
         if self.obstacles:
             bounds = np.array([obs.bounds for obs in self.obstacles], dtype=float)
             self._obs_minx = bounds[:, 0]
@@ -154,7 +163,8 @@ class Environment:
 
         return valid_x & valid_y & (t_enter <= t_exit) & (t_exit >= 0.0) & (t_enter <= 1.0)
 
-    def from_file(self, filename):
+    def from_file(self, filename: str) -> None:
+        """Load environment data from a scenario text file."""
         try:
             with open(filename, "r") as infile:
                 lines = [l.strip() for l in infile.readlines()]

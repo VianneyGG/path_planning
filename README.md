@@ -1,148 +1,203 @@
-# path_planing
+# Path Planning Benchmark Suite (PSO + RRT)
 
-2D path planning project with RRT and PSO algorithms.
+![Python](https://img.shields.io/badge/python-3.13-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-academic%20project-informational)
 
-## Requirements
+> Research-oriented 2D path planning framework comparing RRT and enhanced PSO variants under shared scenarios and benchmark protocols.
 
-- Python 3.13
-- Scenario files in `scenarios/`
+## Overview
 
-## Setup (choose one)
+This project studies 2D path planning in obstacle maps with two families of methods: RRT and PSO. Scenarios are loaded from text files and can be run in interactive mode or in batch benchmark mode.
 
-### Option A: uv (recommended)
+The main contribution is the PSO variant comparison (reset, SA, DL, controlled cooling, pre-heat). The repository includes a reproducible tuning and benchmarking pipeline that logs metrics and generates plots.
 
-```bash
-uv python install 3.13
-uv venv --python 3.13
-uv pip install -r requirements.txt
+The code and artifacts are organized for academic experimentation: same scenarios, repeatable runs, and comparable outputs across algorithms.
+
+## Features
+
+- CLI modes: RRT, multi-robot RRT, PSO.
+- Seven PSO profiles: vanilla, RS, RS_SA_noCC, RS_SA_noCC_DL, RS_SA_CC, RS_SA_PH, RS_SA_CC_DL.
+- Full pipeline: tune, benchmark, report, plot.
+- Reproducible outputs: JSON, Parquet, CSV, PNG, GIF.
+- Smoke tests for quick validation.
+
+## Project Structure
+
+```text
+path_planing/
+|- main.py                    # Main CLI (rrt, multi, pso)
+|- make_pso_gif.py            # GIF export for PSO runs
+|- run_rs_sa_ph_benchmark.py  # Example benchmark launcher
+|- scenarios/                 # Scenario inputs (0..4)
+|- src/
+|  |- environment.py          # Map loading and collision checks
+|  |- PSO/                    # PSO planner implementation
+|  |- RRT/                    # RRT planner implementation
+|  \- benchmark/              # Tune/benchmark/report/plot pipeline
+|- tests/
+|  \- test_smoke.py           # Quick sanity tests
+|- requirements.txt           # pip dependencies
+|- environment.yml            # conda environment
+\- pyproject.toml            # metadata + Python version
 ```
 
-### Option B: conda
+## Installation
+
+### Prerequisites
+
+- Python 3.13 (from pyproject.toml)
+- No mandatory system package is explicitly required
+
+### Setup
 
 ```bash
+# Enter the repository root
+cd path_planing
+
+# Option A (recommended): venv + pip
+python -m venv .venv
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+# Optional: install dev dependency used by smoke tests
+python -m pip install pytest
+```
+
+Alternative:
+
+```bash
+# Conda route
 conda env create -f environment.yml
 conda activate path_planning
 ```
 
-### Option C: venv + pip
+## Usage
 
-```bash
-python -m venv .venv
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+### Basic example
+
+```python
+from src.environment import Environment
+from src.PSO.pso_solver import PSO
+from src.PSO.pso_config import PSOConfig
+
+env = Environment()
+env.from_file("scenarios/scenario0.txt")
+
+cfg = PSOConfig(number_of_particules=30, number_of_iterations=80)
+planner = PSO(env, config=cfg)
+planner.run(progress=False, verbose=False)
+
+if planner.solution is not None:
+    print("Path length:", planner.solution.total_length())
+else:
+    print("No solution found")
 ```
 
-## Quick start
-
-Run one of the available modes:
+### CLI usage (if applicable)
 
 ```bash
-python main.py rrt
-python main.py pso
-python main.py multi
+# Main planner CLI
+python main.py --help
+python main.py rrt --scenario 0
+python main.py multi --scenario 1 --animate multi_robot.html
+python main.py pso --heuristic sa_ph --runs 5 --scenario 2 --animate pso.html
+
+# Unified benchmark CLI
+python -m src.benchmark --help
+python -m src.benchmark run --algo RS_SA_PH --scenarios 0 1 2 3 4 --runs 100 --exp-id exp01
+python -m src.benchmark tune --algo RS_SA_PH --n-iter 50
+python -m src.benchmark benchmark --algo RS_SA_PH --runs 50
+
+# Pipeline dry-run (safe command planning)
+python -m src.benchmark run --algo RS --scenarios 0 --runs 1 --init-points 1 --n-iter 1 --dry-run
+
+# GIF export utility
+python make_pso_gif.py --scenario 0 --algo RS_SA_PH --max-runs 20 --fps 10
+
+# Smoke tests
+python -m pytest tests/test_smoke.py -q
 ```
 
-Optional animation:
+## Configuration
 
-```bash
-python main.py rrt 0 --animate
+No environment variable is required by default.
+
+- Scenario files: scenarios/scenarioN.txt (map size, starts/goals, radius, obstacles)
+- PSO parameters: src/PSO/pso_config.py (swarm size, iterations, SA/cooling, reset, weights)
+- Pipeline defaults: src/benchmark/core/config.py (runs, tuning budget, penalties, parallelism)
+- Algorithm profiles: src/benchmark/core/algo_profiles.py (flags + search spaces)
+
+## Methodology / How it works
+
+1. Load a scenario into Environment.
+2. Run a planner:
+   - RRT: tree expansion + rewiring (+ optional smoothing)
+   - PSO: swarm optimization with configurable heuristics
+3. Compute metrics (fitness, collisions, path length, runtime).
+4. In benchmark mode: tune hyperparameters, run repeated evaluations, generate reports/plots.
+
+```mermaid
+flowchart TD
+  A[Scenario file] --> B[Environment]
+  B --> C{Planner}
+  C --> D[RRT]
+  C --> E[PSO]
+  D --> F[Path + metrics]
+  E --> F
+  F --> G[CLI/plots/animation]
+  F --> H[Benchmark artifacts]
 ```
 
-## Benchmark pipeline
+## Results
 
-Run tuning + benchmarking + reporting + plots:
+Outputs are written to src/benchmark/artifacts/exp_id/:
 
-```bash
-python -m src.benchmark.run_pipeline --algo RS_SA_noCC_DL --scenarios 0 1 2 3 4
-```
+- tuning/: tuning_summary.json + tuning curves
+- benchmark/: benchmark_summary.json + benchmark_runs.parquet + comparison_table.csv
+- logplots/: diagnostic and comparison figures
 
-Outputs are written under:
+Main evaluation criteria:
 
-- `src/benchmark/artifacts/<ALGO>/tuning/`
-- `src/benchmark/artifacts/<ALGO>/benchmark/`
-- `src/benchmark/artifacts/<ALGO>/plots/`
+- collision-free rate
+- best fitness and path length
+- runtime
 
-### `run_pipeline` CLI reference
+## Dependencies
 
-Main command:
+From requirements.txt:
 
-```bash
-python -m src.benchmark.run_pipeline --algo RS_SA_PH --mode compare --exp-id RS_SA_PH
-```
+- matplotlib
+- shapely
+- plotly
+- tqdm
+- rich
+- pandas
+- pyarrow
+- bayesian-optimization
+- joblib
+- seaborn
+- optuna
+- pillow
 
-Key arguments:
+From pyproject.toml:
 
-- `--algo`: tuned algorithm key (ex: `RS`, `RS_SA_noCC`, `RS_SA_PH`, `RS_SA_CC_DL`)
-- `--scenarios`: list of scenarios (default: `0 1 2 3 4`)
-- `--runs`: benchmark runs per algo/scenario
-- `--n-jobs`: outer parallel workers
-- `--chunk-size`: benchmark chunk size (default `24`, safe baseline)
-- `--adaptive-chunking` / `--no-adaptive-chunking`: scenario-aware chunk sizing (enabled by default)
-- `--mode`: `compare` (vanilla + tuned) or `vanilla_only`
-- `--exp-id`: output experiment folder under `src/benchmark/artifacts/`
+- runtime dependencies: none declared
+- dev dependencies: pytest>=9.0.2
 
-Tuning/HPO arguments:
+From environment.yml (conda route):
 
-- `--hpo-backend`: `optuna` (default) or `bayes_opt`  
-  (Optuna runs are now quiet; per‑trial “Trial … finished” messages are suppressed)
-- `--init-points`: warm/random startup budget
-- `--n-iter`: optimization iterations
-- `--eval-repeats`: repeats per trial for robustness
-- `--grid-warmstart-points`: lightweight grid points before main HPO
-- `--grid-focus-params`: number of priority params for grid warm-start
-- The pipeline runs tuning in `per_scenario` mode only (global tuning is disabled in `run_pipeline`)
+- conda: numpy, python=3.11, matplotlib, shapely, tqdm, plotly, pandas, pyarrow
+- pip: pygame, scipy, bayesian-optimization, seaborn
 
-Penalty and confidence arguments:
+## Authors & Acknowledgements
 
-- `--disable-auto-penalties`: disable per-scenario auto scaling
-- `--penalty-calibration-runs`: baseline runs used to scale penalties
-- `--collision-penalty`, `--non-collision-free-penalty`, `--collision-free-weight`, `--no-feasible-penalty`
-- `--confidence-level`: confidence level used in loss curve plotting (ex: `0.95`)
+[Your Name] - [Institution] - [Year]
 
-Loss and diagnostic logs:
+## License
 
-- `--log-loss-curves` / `--no-log-loss-curves` (tuning only, disabled by default in `run_pipeline`)
-- `--log-test-loss-curves` / `--no-log-test-loss-curves` (benchmark/test only, enabled by default)
-- `--log-pso-curves`
-- `--plot-loss-curves` / `--no-plot-loss-curves`
-
-Baseline (Basic) behavior in compare mode:
-
-- `--vanilla-params-summary` defaults to `src/benchmark/artifacts/basic/tuning/tuning_summary.json`
-- If this file is missing, the pipeline prints a warning and falls back to default vanilla config
-
-### Where are benchmark test logs?
-
-For each pipeline run (`--exp-id <ID>`), benchmark logs are stored in:
-
-- `src/benchmark/artifacts/<ID>/benchmark/benchmark_run_log.jsonl` (chunk-level execution logs)
-- `src/benchmark/artifacts/<ID>/benchmark/benchmark_summary.json` (aggregated metrics + metadata)
-- `src/benchmark/artifacts/<ID>/benchmark/benchmark_runs.parquet` (per-run raw metrics)
-
-Tuning logs (if enabled) are stored in:
-
-- `src/benchmark/artifacts/<ID>/tuning/tuning_loss_curves.parquet`
-- `src/benchmark/artifacts/<ID>/tuning/tuning_pso_curves.parquet`
-
-Benchmark test-loss logs (if enabled) are stored in:
-
-- `src/benchmark/artifacts/<ID>/benchmark/benchmark_test_loss_curves.parquet`
-
-## Project layout
-
-- `main.py`: main CLI entry point
-- `src/environment.py`: environment and rendering
-- `src/PSO/`: PSO implementation
-- `src/RRT/`: RRT implementation
-- `src/benchmark/core/`: shared benchmark primitives (`common.py`, `algo_profiles.py`)
-- `src/benchmark/jobs/`: executable benchmark jobs (`run_pipeline`, `tune_algo_bayes`, `benchmark_algo_vs_basic`)
-- `src/benchmark/viz/`: reports and plotting (`performance`, `plot_all_algos`, `plot_tuning_curves`)
-- `src/benchmark/archive/`: legacy/ad-hoc benchmark scripts kept for reference
-- `src/benchmark/`: compatibility wrappers for historical imports / `python -m src.benchmark.<module>`
-- `scenarios/`: input maps
-
-## Notes
-
-- If `python` points to another interpreter, use your environment-specific launcher (`uv run`, activated `conda`, or activated `.venv`).
-- Keep dependencies synchronized between `requirements.txt`, `environment.yml`, and `pyproject.toml` when updating packages.
+MIT

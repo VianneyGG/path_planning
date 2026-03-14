@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from src.PSO.PSO import PSO
+from src.PSO.pso_solver import PSO
 from src.environment import Environment
 
 
@@ -53,3 +53,4 @@ def objective_cost(
 ) -> float:
     collision_free_penalty = float(non_collision_free_penalty) if int(collisions) > 0 else 0.0
     return float(fitness) + float(collision_penalty) * int(collisions) + collision_free_penalty + float(time_weight) * float(elapsed)
+
