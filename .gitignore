@@ -188,6 +188,10 @@ cython_debug/
 .DS_Store
 Thumbs.db
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 2d81db2 (git)
 # Project-generated experiment outputs
 src/benchmark/artifacts/**
 
